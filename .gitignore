@@ -51,3 +51,9 @@ server.log
 server.err
 server.pid
 *.tsbuildinfo
+
+# adapter verification scratch
+server-adapter.log
+
+.verify-adapter/
+

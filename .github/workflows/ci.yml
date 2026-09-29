@@ -61,6 +61,9 @@ jobs:
       - name: Typecheck
         run: pnpm tsc --noEmit
 
+      - name: Source encoding
+        run: node scripts/check-encoding.mjs
+
       - name: Lint
         run: pnpm next lint --max-warnings=200
 

@@ -40,15 +40,26 @@ function createPrismaClient(): PrismaClient {
           // Omitted for a local libSQL file, which needs no token.
           ...(tursoToken ? { authToken: tursoToken } : {}),
         },
-        // CRITICAL. Without this the adapter writes `DateTime` as ISO-8601
-        // TEXT ("2026-09-29T14:20:45.811+00:00") while the classic engine
-        // writes INTEGER epoch-milliseconds (1790691623861). SQLite orders all
-        // TEXT above every INTEGER, so every adapter-written row fails the
+        // CRITICAL, and placement-sensitive.
+        //
+        // Without this option the adapter writes `DateTime` as ISO-8601 TEXT
+        // ("2026-09-29T14:20:45.811+00:00") while the classic engine writes
+        // INTEGER epoch-milliseconds (1790691623861). SQLite orders all TEXT
+        // above every INTEGER, so every adapter-written row fails the
         // dashboard's `createdAt < <ms>` upper bound and every `strftime()`
         // bucket returns NULL. The symptom is a dashboard that still renders
         // pre-seeded traffic while collecting nothing new — silently, and only
-        // in the production transport. Guarded by
-        // scripts/verify-libsql-adapter.ts.
+        // in the production transport. See bug 5 in the README.
+        //
+        // It MUST be the second argument. Placing `timestampFormat` inside the
+        // config object — which reads naturally and type-checks only with a
+        // cast — is silently ignored, because the config is forwarded verbatim
+        // to `createClient()`, which does not know the option. Measured on
+        // @prisma/adapter-libsql 6.19.3:
+        //
+        //   inside config object -> typeof(createdAt) = text     (NOT honoured)
+        //   second argument       -> typeof(createdAt) = integer  (honoured)
+        //   omitted               -> typeof(createdAt) = text     (the bug)
         { timestampFormat: "unixepoch-ms" },
       ),
       log: LOG,

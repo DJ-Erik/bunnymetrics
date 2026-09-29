@@ -1,4 +1,4 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 
 import { apiError, apiOk, authenticate } from "@/lib/api";
 import { prisma } from "@/lib/prisma";

@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { collectSchema } from "@/lib/validations";
@@ -22,14 +22,27 @@ const noop = () =>
  * Coarse geography from CDN-provided headers rather than from the client.
  *
  * We never read, derive from, or store the visitor's IP. The edge resolves it
- * before the request reaches us and we keep only the coarse result: an
- * ISO-3166 alpha-2 country and an optional city name. Vercel and Cloudflare
- * both set these on every request, so the Vercel preview gets real geography
- * with no IP anywhere in the pipeline.
+ * before the request reaches us and we keep only a two-letter ISO-3166 code.
+ * Vercel and Cloudflare both set this on every request, so the preview gets
+ * real country data with no IP anywhere in the pipeline.
  *
- * Because the values are asserted by the edge, they cannot be spoofed by the
- * browser â€” `?country=US` in a query string does nothing, and the collector
+ * Because the value is asserted by the edge, it cannot be spoofed by the
+ * browser — `?country=US` in a query string does nothing, and the collector
  * exposes no `country` parameter at all.
+ *
+ * CITY IS DELIBERATELY NOT COLLECTED. The `city` column still exists on Event
+ * for a future, opt-in feature, but nothing writes to it and it is not exported
+ * or displayed. A city name is a materially stronger quasi-identifier than a
+ * country code: combined with a timestamp it narrows an otherwise anonymous
+ * visitor a long way, and for a product whose pitch is "we hold no personal
+ * data" that is not a trade worth making by default.
+ *
+ * To re-enable city later:
+ *   1. add `const CITY_HEADERS = ["x-vercel-ip-city", "cf-ipcity"];`
+ *   2. add a `readCity()` helper mirroring `readCountry()` below
+ *   3. set `city` on both `prisma.event.create` calls in this file
+ *   4. add "city" to the CSV column list in app/api/events/route.ts
+ * Do it as an explicit, reviewed decision — not as a side effect.
  */
 const COUNTRY_HEADERS = [
   "x-vercel-ip-country", // Vercel
@@ -39,36 +52,15 @@ const COUNTRY_HEADERS = [
   "x-appengine-country",
 ];
 
-const CITY_HEADERS = [
-  "x-vercel-ip-city", // Vercel
-  "cf-ipcity",        // Cloudflare
-];
-
 function readCountry(request: Request): string | null {
   for (const name of COUNTRY_HEADERS) {
     const value = request.headers.get(name)?.trim().toUpperCase();
     if (!value) continue;
-    // Cloudflare sends XX and Vercel sends XX when the country is unknown.
+    // Cloudflare and Vercel both send XX when the country is unknown.
     if (value === "XX" || value === "T1" || value === "UNKNOWN") continue;
     if (/^[A-Z]{2}$/.test(value)) return value;
   }
   return null;
-}
-
-function readCity(request: Request): string | null {
-  for (const name of CITY_HEADERS) {
-    const value = request.headers.get(name)?.trim();
-    if (!value) continue;
-    if (/^(unknown|xx)$/i.test(value)) continue;
-    // Keep it a short label, not a free-form string from the network.
-    if (value.length > 64) continue;
-    return value;
-  }
-  return null;
-}
-
-function geoFromHeaders(request: Request): { country: string | null; city: string | null } {
-  return { country: readCountry(request), city: readCity(request) };
 }
 
 export async function OPTIONS() {
@@ -139,7 +131,7 @@ export async function POST(request: Request) {
   });
   if (duplicate) return noop();
 
-  const { country, city } = geoFromHeaders(request);
+  const country = readCountry(request);
 
   await prisma.event.create({
     data: {
@@ -151,7 +143,6 @@ export async function POST(request: Request) {
       visitorId: data.vid ?? "anon",
       sessionId: data.sid ?? null,
       country,
-      city,
       browser: data.br || null,
       os: data.os || null,
       device: data.dv || null,
@@ -194,7 +185,7 @@ export async function GET(request: Request) {
   });
   if (duplicate) return noop();
 
-  const { country, city } = geoFromHeaders(request);
+  const country = readCountry(request);
 
   await prisma.event.create({
     data: {
@@ -206,7 +197,6 @@ export async function GET(request: Request) {
       visitorId: data.vid ?? "anon",
       sessionId: data.sid ?? null,
       country,
-      city,
       browser: data.br || null,
       os: data.os || null,
       device: data.dv || null,

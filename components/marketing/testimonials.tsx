@@ -1,4 +1,4 @@
-﻿import { Quote } from "lucide-react";
+import { Quote } from "lucide-react";
 
 import { Container, Section, SectionHeading } from "@/components/marketing/section";
 import { Stagger, StaggerItem } from "@/components/motion/reveal";

@@ -202,7 +202,7 @@ async function main() {
   check("new site top page", newStats.topPages[0]?.path === "/hello", newStats.topPages[0]?.path);
   check("country from Cloudflare header", newStats.countries[0]?.label === "DE", JSON.stringify(newStats.countries));
 
-  // Vercel sets its own pair of headers; both must be honoured.
+  // Vercel sets its own country header; it must be honoured.
   await fetch(`${BASE}/api/collect?site=${newSite}&type=pageview&path=/vercel-geo&vid=e2e_new_vercel`, {
     headers: { "x-vercel-ip-country": "GB", "x-vercel-ip-city": "London" },
   });
@@ -211,11 +211,14 @@ async function main() {
 
   const vercelRows = await (await fetch(`${BASE}/api/events?site=${newSite}&limit=50`, { headers: { Cookie: cookieHeader() } })).json();
   const london = vercelRows.events.find((e) => e.path === "/vercel-geo");
-  check("city from x-vercel-ip-city", london?.city === "London", `city = ${String(london?.city)}`);
   check("country stored from x-vercel-ip-country", london?.country === "GB", `country = ${String(london?.country)}`);
 
+  // City is deliberately not collected. The edge header is present on the
+  // request above and must still be ignored.
+  check("city NOT collected despite x-vercel-ip-city", london?.city === null, `city = ${String(london?.city)}`);
+
   await fetch(`${BASE}/api/collect?site=${newSite}&type=pageview&path=/spoof&vid=e2e_new_2`, {
-    headers: { "cf-ipcountry": "XX" },
+    headers: { "cf-ipcountry": "XX", "cf-ipcity": "Nowhere" },
   });
   const spoof = await (await fetch(`${BASE}/api/stats?site=${newSite}&range=24h`)).json();
   check("unknown country ignored", spoof.countries.every((c) => c.label !== "XX"), JSON.stringify(spoof.countries));
@@ -226,6 +229,12 @@ async function main() {
   const clientRow = spoofRows.events.find((e) => e.path === "/client-geo");
   check("client cannot spoof country", clientRow?.country === null, `country = ${String(clientRow?.country)}`);
   check("client cannot spoof city", clientRow?.city === null, `city = ${String(clientRow?.city)}`);
+
+  // City must not appear in the CSV export either.
+  const csvBody = await (await fetch(`${BASE}/api/events?site=${newSite}&format=csv&limit=50`, { headers: { Cookie: cookieHeader() } })).text();
+  const csvHeader = csvBody.split("\n")[0] ?? "";
+  check("city absent from CSV header", !csvHeader.includes("city"), csvHeader.slice(0, 60));
+  check("country present in CSV header", csvHeader.includes("country"), csvHeader.slice(0, 60));
 
   const patch = await fetch(`${BASE}/api/sites/${newSite}`, {
     method: "PATCH",

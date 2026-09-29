@@ -81,6 +81,9 @@ if $PM next lint --max-warnings=200; then ok "no lint warnings or errors"; else 
 step "Tracking script budget"
 if node scripts/check-tracking-size.mjs; then ok "within budget"; else fail "tracking.js over budget"; fi
 
+step "Source encoding"
+if node scripts/check-encoding.mjs; then ok "no BOMs in source files"; else fail "stray UTF-8 BOM"; fi
+
 # --- 5. build ---------------------------------------------------------------
 step "Build"
 if $PM build; then ok "production build succeeded"; else fail "build failed"; exit 1; fi
@@ -100,7 +103,7 @@ if $PM verify:libsql; then ok "adapter matches the classic engine"; else fail "l
 
 # --- 6. seed + serve + test -------------------------------------------------
 step "Start production server on :${PORT}"
-$PM start > server.log 2>&1 &
+$PM start -p "$PORT" > server.log 2>&1 &
 SERVER_PID=$!
 
 READY=0
@@ -129,6 +132,72 @@ if BASE="$BASE" node scripts/smoke-test.mjs; then ok "smoke tests passed"; else 
 
 step "Dashboard render tests"
 if BASE="$BASE" node scripts/dashboard-test.mjs; then ok "dashboard tests passed"; else fail "dashboard tests failed"; fi
+
+# --- adapter transport -------------------------------------------------------
+# Runs the same API suite a second time with TURSO_DATABASE_URL pointed at a
+# real libSQL file, which is the transport Vercel uses in production. libSQL
+# opens ordinary SQLite files, so this needs no Turso account and no network.
+ADAPTER_PORT="${ADAPTER_PORT:-$((${PORT} + 1))}"
+ADAPTER_BASE="http://localhost:${ADAPTER_PORT}"
+# Deliberately RELATIVE to the repo root. Git Bash hands back MSYS-style
+# absolute paths (/tmp/...) that native Node on Windows cannot open, so an
+# absolute temp path fails on Windows while passing on Linux. A relative path
+# resolves natively on both.
+ADAPTER_DIR=".verify-adapter"
+ADAPTER_REL="$ADAPTER_DIR/adapter.db"
+
+step "Start adapter-backed server on :${ADAPTER_PORT}"
+cleanup_adapter() {
+  if [ -n "${ADAPTER_PID:-}" ] && kill -0 "$ADAPTER_PID" 2> /dev/null; then
+    kill "$ADAPTER_PID" 2> /dev/null || true
+    wait "$ADAPTER_PID" 2> /dev/null || true
+    info "stopped adapter server (pid $ADAPTER_PID)"
+  fi
+  if [ -n "${ADAPTER_DIR:-}" ] && [ -d "$ADAPTER_DIR" ]; then
+    rm -rf "$ADAPTER_DIR" 2> /dev/null || true
+  fi
+}
+
+if [ -f prisma/dev.db ]; then
+  rm -rf "$ADAPTER_DIR" 2> /dev/null || true
+  mkdir -p "$ADAPTER_DIR"
+  cp prisma/dev.db "$ADAPTER_REL"
+
+  TURSO_DATABASE_URL="file:./$ADAPTER_REL" \
+  TURSO_AUTH_TOKEN="" \
+  NEXTAUTH_URL="$ADAPTER_BASE" \
+  NEXT_PUBLIC_APP_URL="$ADAPTER_BASE" \
+  DATABASE_URL="file:./$ADAPTER_REL" \
+    $PM start -p "$ADAPTER_PORT" > server-adapter.log 2>&1 &
+  ADAPTER_PID=$!
+  trap 'cleanup; cleanup_adapter' EXIT INT TERM
+
+  READY=0
+  for i in $(seq 1 60); do
+    if curl -sf "$ADAPTER_BASE" > /dev/null 2>&1; then
+      READY=1
+      ok "adapter server ready after ${i}s"
+      break
+    fi
+    if ! kill -0 "$ADAPTER_PID" 2> /dev/null; then break; fi
+    sleep 1
+  done
+
+  if [ "$READY" -ne 1 ]; then
+    fail "adapter server did not become ready"
+    info "--- server-adapter.log ---"
+    cat server-adapter.log 2> /dev/null || true
+  else
+    step "API smoke tests (libSQL adapter)"
+    if BASE="$ADAPTER_BASE" node scripts/smoke-test.mjs; then
+      ok "smoke tests passed on the adapter"
+    else
+      fail "smoke tests failed on the adapter"
+    fi
+  fi
+else
+  fail "prisma/dev.db missing — cannot exercise the adapter transport"
+fi
 
 # --- summary ----------------------------------------------------------------
 printf '\n%s%s%s\n' "$BOLD" "────────────────────────────────────────" "$OFF"

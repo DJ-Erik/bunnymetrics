@@ -1,4 +1,4 @@
-﻿# BunnyMetrics
+# BunnyMetrics
 
 [![CI](https://github.com/DJ-Erik/bunnymetrics/actions/workflows/ci.yml/badge.svg)](https://github.com/DJ-Erik/bunnymetrics/actions/workflows/ci.yml)
 [![Bailout guard](https://github.com/DJ-Erik/bunnymetrics/actions/workflows/bailout-check.yml/badge.svg)](https://github.com/DJ-Erik/bunnymetrics/actions/workflows/bailout-check.yml)
@@ -58,13 +58,14 @@ Every claim on this page is checked by CI on every push. This is what
 | Production build       | `next build`                       | 16 routes, 7 static pages                           |
 | Tracking budget        | `node scripts/check-tracking-size.mjs` | 2032 B / 2048 B - **16 B to spare**              |
 | Prerender guard        | `node scripts/check-bailout.mjs`    | 3/3 pages fully server-rendered                     |
-| libSQL adapter parity  | `pnpm verify:libsql`                | **20 / 20** - Turso transport matches SQLite         |
-| API + auth suite       | `node scripts/smoke-test.mjs`       | **80 / 80**                                         |
+| libSQL adapter parity  | `pnpm verify:libsql`                | **24 / 24** - Turso transport matches SQLite         |
+| API suite (SQLite)     | `node scripts/smoke-test.mjs`       | **82 / 82**                                         |
+| API suite (libSQL)     | same, `TURSO_DATABASE_URL` set     | **82 / 82**                                         |
 | Dashboard render suite | `node scripts/dashboard-test.mjs`   | **38 / 38**                                         |
 
-The suites also run green against the **libSQL driver adapter** with
-`TURSO_DATABASE_URL` pointed at a real database, which is how the Turso
-deployment is exercised before it ships. See
+`scripts/verify.sh` runs the API suite **twice** - once on the classic engine
+and once against a real libSQL database with `TURSO_DATABASE_URL` set, which is
+how the Turso deployment is exercised before it ships. See
 [the Turso section](#private-preview-on-vercel--turso).
 
 The two test suites run against a real production server and a real database -
@@ -259,13 +260,31 @@ proves it: it opens one database through both transports and asserts the
 `DateTime` storage format, the `strftime` bucketing, and all four ranges'
 buckets and totals are identical.
 
-**The `timestampFormat: "unixepoch-ms"` option is not optional.** Without it the
-adapter writes `DateTime` as ISO-8601 text while the classic engine writes an
-integer, and SQLite sorts all text above every integer - so the dashboard's
-`createdAt < <ms>` upper bound excludes every adapter-written row and every
-`strftime` bucket returns `NULL`. The symptom is a deployed dashboard that still
-renders pre-seeded traffic while collecting nothing new. That is
+**The `timestampFormat: "unixepoch-ms"` option is not optional, and its
+placement matters.** Without it the adapter writes `DateTime` as ISO-8601 text
+while the classic engine writes an integer, and SQLite sorts all text above every
+integer - so the dashboard's `createdAt < <ms>` upper bound excludes every
+adapter-written row and every `strftime` bucket returns `NULL`. The symptom is a
+deployed dashboard that still renders pre-seeded traffic while collecting
+nothing new. That is
 [bug 5](#5-turso-write-path-silently-invisible-in-the-dashboard) below.
+
+It must also be the **second constructor argument**:
+
+```ts
+new PrismaLibSQL({ url, authToken }, { timestampFormat: "unixepoch-ms" })  // works
+new PrismaLibSQL({ url, authToken, timestampFormat: "unixepoch-ms" })     // silently ignored
+```
+
+The config object is forwarded verbatim to `createClient()`, which does not know
+the option, so the second form type-checks only with a cast and then writes
+TEXT anyway. Measured on `@prisma/adapter-libsql` 6.19.3:
+
+| Construction | `typeof(createdAt)` |
+| ------------ | ------------------- |
+| inside config object | `text` (not honoured) |
+| second argument | `integer` (honoured) |
+| omitted | `text` (the bug) |
 
 Vercel functions are stateless, so the Prisma client is created per invocation
 in production; only dev reuses a global across hot reloads.
@@ -342,49 +361,61 @@ The privacy claim and the geography breakdown are in tension, so the resolution
 matters: **we never read, store, or derive from the visitor's IP address.**
 
 The origin sees a request that a CDN has already resolved. Vercel sets
-`x-vercel-ip-country: GB` and `x-vercel-ip-city: London`; Cloudflare sets
-`cf-ipcountry: GB` and `cf-ipcity: London`; Fastly sets
-`fastly-client-country: GB`. We read those, keep a two-letter ISO-3166 code and
-an optional city label, and discard everything else. No IP, no lat/long, no ASN,
-nothing to reverse.
+`x-vercel-ip-country: GB` and Cloudflare sets `cf-ipcountry: GB`; Fastly sets
+`fastly-client-country: GB`. We read those, keep a two-letter ISO-3166 code, and
+discard everything else. No IP, no lat/long, no ASN, no city, nothing to
+reverse.
 
 ```ts
 const COUNTRY_HEADERS = [
-  "x-vercel-ip-country",   // Vercel
-  "cf-ipcountry",          // Cloudflare
+  "x-vercel-ip-country", // Vercel
+  "cf-ipcountry",        // Cloudflare
   "x-country-code",
   "fastly-client-country",
   "x-appengine-country",
 ];
-
-const CITY_HEADERS = ["x-vercel-ip-city", "cf-ipcity"];
 ```
 
 This keeps three properties at once:
 
 - **No IP storage.** The field BunnyMetrics promises not to collect is the one it
   does not collect.
-- **Not client-spoofable.** The code and city are asserted by the edge, not
-  supplied by the browser, so `?country=US` in a query string does nothing. The
-  collector exposes no `country` or `city` parameter at all, and the smoke suite
-  asserts that a client-supplied value is discarded.
+- **Not client-spoofable.** The code is asserted by the edge, not supplied by
+  the browser, so `?country=US` in a query string does nothing. The collector
+  exposes no `country` parameter at all, and the smoke suite asserts that a
+  client-supplied value is discarded.
 - **Unspoofable is also a privacy win.** A client-supplied country would be
   personal data under GDPR; a CDN-derived one is a coarse, non-identifying
   attribute.
 
-**On city-level data.** Country and city are both collected, both only from
-edge headers. A city name is a weaker identifier than an IP but not a
-meaningless one: combined with a timestamp it narrows an anonymous visitor
-considerably. BunnyMetrics never joins it to anything — no session replay, no
-fingerprint, no cross-site identifier — and the `city` column is not surfaced
-anywhere in the UI. If you would rather not store it, drop `"x-vercel-ip-city"`
-and `"cf-ipcity"` from `CITY_HEADERS` in `app/api/collect/route.ts`; nothing else
-depends on it.
+### City is deliberately not collected
 
-Running without a CDN simply means the geography panels stay empty. That is a
+The `Event.city` column still exists for a future opt-in feature, but **nothing
+writes to it**. City is not collected, not exported in the CSV, and not shown
+anywhere in the UI.
+
+Both edges make it trivially available — Vercel sends `x-vercel-ip-city` and
+Cloudflare sends `cf-ipcity` on every request — and an earlier revision of this
+collector did store it. It was removed. A city name is a materially stronger
+quasi-identifier than a country code: paired with a timestamp it narrows an
+otherwise anonymous visitor a long way, and for a product whose entire pitch is
+"we hold no personal data" that is not a trade worth making silently in the
+default path.
+
+Re-enabling it is a four-line change, documented in the comment above
+`COUNTRY_HEADERS` in `app/api/collect/route.ts`: restore the two header names,
+add a `readCity()` helper, set `city` on both `prisma.event.create` calls, and
+add `"city"` to the CSV column list in `app/api/events/route.ts`. It should be a
+deliberate, reviewed decision rather than a side effect.
+
+`pnpm verify:libsql` asserts the storage-level invariant — zero rows with a
+non-null `city` — so an accidental regression fails CI rather than quietly
+starting to collect it.
+
+Running without a CDN simply means the geography panel stays empty. That is a
 deliberate degradation, not a bug — see [Troubleshooting](#troubleshooting).
 A Vercel deployment needs no extra work, since Vercel's own edge sets
-`x-vercel-ip-*` on every request.
+`x-vercel-ip-country` on every request.
 
 ---
 
@@ -594,7 +625,7 @@ Variables** (`NEXTAUTH_SECRET`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, plus
 
 To make the preview private: **Vercel → Settings → Deployment Protection →
 Vercel Authentication**. That gates every route behind a Vercel account, which
-also means Vercel's own edge sets `x-vercel-ip-*`, so the geography panels are
+also means Vercel's own edge sets `x-vercel-ip-country`, so the country panel is
 populated with no extra configuration.
 
 ### What `vercel.json` handles
@@ -616,7 +647,7 @@ pnpm verify:libsql
 # 2. Or run the whole app through the adapter
 cp prisma/dev.db /tmp/probe.db      # Windows: any path works with backslashes
 TURSO_DATABASE_URL="file:/tmp/probe.db" pnpm start
-node scripts/smoke-test.mjs         # 80/80
+node scripts/smoke-test.mjs         # 82/82
 ```
 
 Both paths are part of `verify.sh` and CI. See
@@ -807,10 +838,11 @@ Report vulnerabilities privately — see [SECURITY.md](SECURITY.md).
 ```
 
 Runs install, database sync, typecheck, lint, tracking-budget check, build,
-prerender guard, seed, then boots the production server and runs both test
-suites, tearing the server down afterwards. It is destructive to the local
-SQLite database: it re-seeds, so hand-made sites in `prisma/dev.db` will be
-removed.
+prerender guard, seed, the libSQL parity check, then boots the production server
+and runs the API and dashboard suites — and boots a **second** server against a
+real libSQL database to re-run the API suite through the Turso transport. Both
+servers are torn down on exit. It is destructive to the local SQLite database:
+it re-seeds, so hand-made sites in `prisma/dev.db` will be removed.
 
 Individually:
 
@@ -901,9 +933,10 @@ Individually:
 - **[ ] Geography is empty without a CDN.** By design — see
   [the privacy section](#why-country-comes-from-cdn-headers). Vercel and
   Cloudflare both work out of the box; a bare origin gets nothing.
-- **[ ] City is stored but not surfaced.** Collected from `x-vercel-ip-city` /
-  `cf-ipcity` alongside country. The `city` column is written and included in the
-  CSV export, but no dashboard panel reads it yet.
+- **[x] City is no longer collected.** Removed for the private preview. The
+  `Event.city` column is retained but never populated, exported, or displayed;
+  `pnpm verify:libsql` fails if a row ever gains a value. Re-enabling is a
+  four-line change, documented above.
 - **[ ] Mock billing only.** Real Stripe keys flip the `mode` flag; the
   `checkout.sessions.create` call is not written.
 - **[ ] SQLite has no row-level security.** Tenant isolation is enforced in the
@@ -932,10 +965,10 @@ script is not executing; check for a CSP `script-src` block.
 **`db push` asks to accept data loss** — expected when adding a unique index to a
 populated column. Safe on an empty table; back up first in production.
 
-**Geography panels are empty** — they need a CDN header. Vercel sets
-`x-vercel-ip-country` / `x-vercel-ip-city` and Cloudflare sets `cf-ipcountry` /
-`cf-ipcity` automatically; a bare origin with neither gets nothing, by design.
-See [why country comes from CDN headers](#why-country-comes-from-cdn-headers).
+**Geography panel is empty** — it needs a CDN header. Vercel sets
+`x-vercel-ip-country` and Cloudflare sets `cf-ipcountry` automatically; a bare
+origin with neither gets nothing, by design. See
+[why country comes from CDN headers](#why-country-comes-from-cdn-headers).
 
 **Charts are empty but the stat cards have numbers** — this is bugs 2, 3 and 5
 from the postmortem. `pnpm verify:stats` will either show populated buckets or

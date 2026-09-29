@@ -4,10 +4,15 @@
 // dialect, so the aggregation in lib/stats.ts — `strftime(createdAt / 1000,
 // 'unixepoch')` and the BUCKET_SQL map — is unchanged in production. The driver
 // adapter swaps the transport, never the wire format.
+//
+// `driverAdapters` is no longer listed under previewFeatures: it graduated to
+// GA in Prisma 6, and declaring it only produces
+//   warn Preview feature "driverAdapters" is deprecated
+// on every CLI invocation. Re-adding it changes no behaviour, and
+// `pnpm verify:libsql` passes with it removed.
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
 }
 
 datasource db {

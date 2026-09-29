@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Proves that swapping the Prisma transport to libSQL does not change the
  * storage format of `DateTime`, and therefore does not change any number the
  * dashboard reports.
@@ -244,7 +244,39 @@ async function main() {
     );
     check("COUNT coerces to a finite number", Number.isFinite(Number(total)));
 
-    // --- 5. every range shape returns byte-identical data ------------------
+    // --- 5. city is never collected ---------------------------------------
+    // The `city` column exists on Event for a future opt-in feature, but the
+    // collector must never populate it. Assert at the storage layer so a
+    // regression anywhere in the write path is caught, not just in the API
+    // response.
+    const [cityRow] = await engine.$queryRaw<Row[]>(Prisma.sql`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN city IS NOT NULL AND city != '' THEN 1 ELSE 0 END) AS populated
+      FROM Event
+    `);
+    const cityTotal = Number(cityRow?.total ?? 0);
+    const cityPopulated = Number(cityRow?.populated ?? 0);
+    check(
+      "no Event row has a city value",
+      cityPopulated === 0,
+      `${cityPopulated} populated of ${cityTotal}`,
+    );
+    check("the table actually has rows to assert over", cityTotal > 0, `${cityTotal} events`);
+
+    const sample = await engine.$queryRaw<Row[]>(Prisma.sql`
+      SELECT visitorId AS writer, city
+      FROM Event WHERE siteId = ${probeSite} ORDER BY writer ASC
+    `);
+    for (const row of sample) {
+      check(
+        `row via ${String(row.writer)} wrote no city`,
+        row.city === null || row.city === undefined,
+        `city = ${String(row.city)}`,
+      );
+    }
+
+    // --- 6. every range shape returns byte-identical data ------------------
     console.log("\n  query parity (adapter vs classic engine):\n");
 
     const windows: Array<{ label: string; format: string; from: number; to: number }> = [
