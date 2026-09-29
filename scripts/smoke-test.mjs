@@ -192,7 +192,7 @@ async function main() {
   });
   check("invalid domain -> 422", badSite.status === 422, `status ${badSite.status}`);
 
-  // Country is resolved from a CDN header, never from client input.
+  // Geography comes from CDN headers, never from client input.
   await fetch(`${BASE}/api/collect?site=${newSite}&type=pageview&path=/hello&vid=e2e_new_1&br=Firefox&os=Linux&dv=mobile`, {
     headers: { "cf-ipcountry": "DE" },
   });
@@ -200,13 +200,32 @@ async function main() {
   const newStats = await (await fetch(`${BASE}/api/stats?site=${newSite}&range=24h`)).json();
   check("new site records event", newStats.totals.pageviews === 1, `pageviews ${newStats.totals.pageviews}`);
   check("new site top page", newStats.topPages[0]?.path === "/hello", newStats.topPages[0]?.path);
-  check("country from CDN header", newStats.countries[0]?.label === "DE", JSON.stringify(newStats.countries));
+  check("country from Cloudflare header", newStats.countries[0]?.label === "DE", JSON.stringify(newStats.countries));
+
+  // Vercel sets its own pair of headers; both must be honoured.
+  await fetch(`${BASE}/api/collect?site=${newSite}&type=pageview&path=/vercel-geo&vid=e2e_new_vercel`, {
+    headers: { "x-vercel-ip-country": "GB", "x-vercel-ip-city": "London" },
+  });
+  const vercelGeo = await (await fetch(`${BASE}/api/stats?site=${newSite}&range=24h`)).json();
+  check("country from Vercel header", vercelGeo.countries.some((c) => c.label === "GB"), JSON.stringify(vercelGeo.countries));
+
+  const vercelRows = await (await fetch(`${BASE}/api/events?site=${newSite}&limit=50`, { headers: { Cookie: cookieHeader() } })).json();
+  const london = vercelRows.events.find((e) => e.path === "/vercel-geo");
+  check("city from x-vercel-ip-city", london?.city === "London", `city = ${String(london?.city)}`);
+  check("country stored from x-vercel-ip-country", london?.country === "GB", `country = ${String(london?.country)}`);
 
   await fetch(`${BASE}/api/collect?site=${newSite}&type=pageview&path=/spoof&vid=e2e_new_2`, {
     headers: { "cf-ipcountry": "XX" },
   });
   const spoof = await (await fetch(`${BASE}/api/stats?site=${newSite}&range=24h`)).json();
   check("unknown country ignored", spoof.countries.every((c) => c.label !== "XX"), JSON.stringify(spoof.countries));
+
+  const clientSpoof = await fetch(`${BASE}/api/collect?site=${newSite}&type=pageview&path=/client-geo&vid=e2e_new_3&country=JP&city=Tokyo`);
+  check("client-supplied geo params accepted but inert", clientSpoof.status === 204);
+  const spoofRows = await (await fetch(`${BASE}/api/events?site=${newSite}&limit=50`, { headers: { Cookie: cookieHeader() } })).json();
+  const clientRow = spoofRows.events.find((e) => e.path === "/client-geo");
+  check("client cannot spoof country", clientRow?.country === null, `country = ${String(clientRow?.country)}`);
+  check("client cannot spoof city", clientRow?.city === null, `city = ${String(clientRow?.city)}`);
 
   const patch = await fetch(`${BASE}/api/sites/${newSite}`, {
     method: "PATCH",

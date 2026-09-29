@@ -3,6 +3,15 @@ const nextConfig = {
   reactStrictMode: true,
   // Pin the trace root so standalone builds don't pick up parent lockfiles.
   outputFileTracingRoot: import.meta.dirname,
+  // Database drivers must not be bundled into serverless functions. Prisma
+  // resolves its engines and the libSQL client opens its own sockets at
+  // runtime; tracing them through the bundler breaks on Vercel.
+  serverExternalPackages: [
+    "@prisma/client",
+    ".prisma/client",
+    "@prisma/adapter-libsql",
+    "@libsql/client",
+  ],
   eslint: {
     // Lint runs via `npm run lint`; keeping builds deterministic.
     ignoreDuringBuilds: true,

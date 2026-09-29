@@ -1,14 +1,20 @@
 // BunnyMetrics — Prisma schema
-// Datasource: SQLite (zero-config local dev). Swap `provider` to `postgresql`
-// and the datasource url for production; the models are provider-agnostic.
+//
+// Datasource is SQLite, and it stays SQLite. Turso/libSQL speaks the SQLite
+// dialect, so the aggregation in lib/stats.ts — `strftime(createdAt / 1000,
+// 'unixepoch')` and the BUCKET_SQL map — is unchanged in production. The driver
+// adapter swaps the transport, never the wire format.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  // Consumed by the Prisma CLI (db push / migrate) and by local development.
+  // At runtime lib/prisma.ts hands the adapter TURSO_DATABASE_URL instead.
+  url = env("DATABASE_URL")
 }
 
 /// A person who can own one or more tracked properties.

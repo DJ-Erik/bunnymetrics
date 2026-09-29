@@ -1,4 +1,4 @@
-# BunnyMetrics
+﻿# BunnyMetrics
 
 [![CI](https://github.com/DJ-Erik/bunnymetrics/actions/workflows/ci.yml/badge.svg)](https://github.com/DJ-Erik/bunnymetrics/actions/workflows/ci.yml)
 [![Bailout guard](https://github.com/DJ-Erik/bunnymetrics/actions/workflows/bailout-check.yml/badge.svg)](https://github.com/DJ-Erik/bunnymetrics/actions/workflows/bailout-check.yml)
@@ -32,6 +32,7 @@ PII stored    none — no IPs, no fingerprints, no names
   - [The aggregation engine](#the-aggregation-engine)
   - [Why country comes from CDN headers](#why-country-comes-from-cdn-headers)
 - [Postmortem: four bugs worth knowing about](#postmortem-four-bugs-worth-knowing-about)
+- [Private preview on Vercel + Turso](#private-preview-on-vercel--turso)
 - [Project layout](#project-layout)
 - [API reference](#api-reference)
 - [Data model](#data-model)
@@ -55,17 +56,23 @@ Every claim on this page is checked by CI on every push. This is what
 | Typecheck              | `tsc --noEmit`                     | 0 errors, `strict: true`                            |
 | Lint                   | `next lint --max-warnings=200`      | 0 errors, 0 warnings                                |
 | Production build       | `next build`                       | 16 routes, 7 static pages                           |
-| Tracking budget        | `node scripts/check-tracking-size.mjs` | 2032 B / 2048 B — **16 B to spare**              |
+| Tracking budget        | `node scripts/check-tracking-size.mjs` | 2032 B / 2048 B - **16 B to spare**              |
 | Prerender guard        | `node scripts/check-bailout.mjs`    | 3/3 pages fully server-rendered                     |
-| API + auth suite       | `node scripts/smoke-test.mjs`       | **74 / 74**                                         |
+| libSQL adapter parity  | `pnpm verify:libsql`                | **20 / 20** - Turso transport matches SQLite         |
+| API + auth suite       | `node scripts/smoke-test.mjs`       | **80 / 80**                                         |
 | Dashboard render suite | `node scripts/dashboard-test.mjs`   | **38 / 38**                                         |
 
-The two test suites run against a real production server and a real database —
+The suites also run green against the **libSQL driver adapter** with
+`TURSO_DATABASE_URL` pointed at a real database, which is how the Turso
+deployment is exercised before it ships. See
+[the Turso section](#private-preview-on-vercel--turso).
+
+The two test suites run against a real production server and a real database -
 no mocks, no stubs. Together they cover registration and validation, credential
 sign-in and sessions, unauthorized access, the full site lifecycle,
 cross-tenant isolation, API-token auth, CSV export, mock billing, the ingestion
-path (dedupe, unknown site, CORS preflight, engagement beacons) and all four
-stats ranges.
+path (dedupe, unknown site, CORS preflight, engagement beacons), edge-derived
+geography including spoofing attempts, and all four stats ranges.
 
 The tracking size and prerender checks exist because both of those facts were
 wrong at some point, and neither one is visible in a build log. See
@@ -229,6 +236,40 @@ zero-filled in JS, so a quiet hour renders as a zero rather than a gap.
 The dashboard's realtime panel polls `/api/stats?realtime=1` every 10 seconds,
 which is a single `GROUP BY visitorId` over a five-minute window.
 
+### Two transports, one client
+
+`lib/prisma.ts` picks a transport at import time, and the rest of the app cannot
+tell which one it got:
+
+```ts
+if (tursoUrl) {
+  return new PrismaClient({
+    adapter: new PrismaLibSQL(
+      { url: tursoUrl, authToken: tursoToken },
+      { timestampFormat: "unixepoch-ms" },   // load-bearing, see below
+    ),
+  });
+}
+return new PrismaClient();                    // classic engine, local + CI
+```
+
+Turso speaks the SQLite dialect, so `provider = "sqlite"` stays, the models are
+untouched, and every query in `lib/stats.ts` runs unchanged. `pnpm verify:libsql`
+proves it: it opens one database through both transports and asserts the
+`DateTime` storage format, the `strftime` bucketing, and all four ranges'
+buckets and totals are identical.
+
+**The `timestampFormat: "unixepoch-ms"` option is not optional.** Without it the
+adapter writes `DateTime` as ISO-8601 text while the classic engine writes an
+integer, and SQLite sorts all text above every integer - so the dashboard's
+`createdAt < <ms>` upper bound excludes every adapter-written row and every
+`strftime` bucket returns `NULL`. The symptom is a deployed dashboard that still
+renders pre-seeded traffic while collecting nothing new. That is
+[bug 5](#5-turso-write-path-silently-invisible-in-the-dashboard) below.
+
+Vercel functions are stateless, so the Prisma client is created per invocation
+in production; only dev reuses a global across hot reloads.
+
 ### The aggregation engine
 
 All SQL lives in [`lib/stats.ts`](lib/stats.ts). Two details there are
@@ -297,50 +338,62 @@ behave the same way. `scripts/verify-stats.ts` calls this out so nobody
 
 ### Why country comes from CDN headers
 
-The privacy claim and the country breakdown are in tension, so the resolution
+The privacy claim and the geography breakdown are in tension, so the resolution
 matters: **we never read, store, or derive from the visitor's IP address.**
 
-The origin sees a request that a CDN has already resolved. Cloudflare sets
-`cf-ipcountry: GB`, Vercel sets `x-vercel-ip-country: GB`, Fastly sets
-`fastly-client-country: GB`. We read those, keep the two-letter ISO-3166 code,
-and discard everything else. No IP, no lat/long, no ASN, no city-level
-precision, nothing to reverse.
+The origin sees a request that a CDN has already resolved. Vercel sets
+`x-vercel-ip-country: GB` and `x-vercel-ip-city: London`; Cloudflare sets
+`cf-ipcountry: GB` and `cf-ipcity: London`; Fastly sets
+`fastly-client-country: GB`. We read those, keep a two-letter ISO-3166 code and
+an optional city label, and discard everything else. No IP, no lat/long, no ASN,
+nothing to reverse.
 
 ```ts
-function countryFromHeaders(request: Request): string | null {
-  for (const name of ["cf-ipcountry", "x-vercel-ip-country",
-                      "x-country-code", "fastly-client-country",
-                      "x-appengine-country"]) {
-    const value = request.headers.get(name)?.trim().toUpperCase();
-    if (!value) continue;
-    if (value === "XX" || value === "T1") continue;   // genuinely unknown
-    if (/^[A-Z]{2}$/.test(value)) return value;
-  }
-  return null;
-}
+const COUNTRY_HEADERS = [
+  "x-vercel-ip-country",   // Vercel
+  "cf-ipcountry",          // Cloudflare
+  "x-country-code",
+  "fastly-client-country",
+  "x-appengine-country",
+];
+
+const CITY_HEADERS = ["x-vercel-ip-city", "cf-ipcity"];
 ```
 
 This keeps three properties at once:
 
 - **No IP storage.** The field BunnyMetrics promises not to collect is the one it
   does not collect.
-- **Not client-spoofable.** The code is asserted by the edge, not supplied by
-  the browser, so `?country=US` in a query string does nothing. The collector
-  has no `country` parameter at all.
+- **Not client-spoofable.** The code and city are asserted by the edge, not
+  supplied by the browser, so `?country=US` in a query string does nothing. The
+  collector exposes no `country` or `city` parameter at all, and the smoke suite
+  asserts that a client-supplied value is discarded.
 - **Unspoofable is also a privacy win.** A client-supplied country would be
   personal data under GDPR; a CDN-derived one is a coarse, non-identifying
   attribute.
 
-Running without a CDN simply means the Countries panel stays empty. That is a
+**On city-level data.** Country and city are both collected, both only from
+edge headers. A city name is a weaker identifier than an IP but not a
+meaningless one: combined with a timestamp it narrows an anonymous visitor
+considerably. BunnyMetrics never joins it to anything — no session replay, no
+fingerprint, no cross-site identifier — and the `city` column is not surfaced
+anywhere in the UI. If you would rather not store it, drop `"x-vercel-ip-city"`
+and `"cf-ipcity"` from `CITY_HEADERS` in `app/api/collect/route.ts`; nothing else
+depends on it.
+
+Running without a CDN simply means the geography panels stay empty. That is a
 deliberate degradation, not a bug — see [Troubleshooting](#troubleshooting).
+A Vercel deployment needs no extra work, since Vercel's own edge sets
+`x-vercel-ip-*` on every request.
 
 ---
 
-## Postmortem: four bugs worth knowing about
+## Postmortem: five bugs worth knowing about
 
-All four passed `tsc`, passed ESLint, and produced a **successful
+The first four passed `tsc`, passed ESLint, and produced a **successful
 `next build`**. None was visible in a log. They were found by asserting on the
-prerendered HTML and the live API response. This is the argument for
+prerendered HTML and the live API response. The fifth only appears in the
+production transport, and would have shipped silently. This is the argument for
 `verify.sh` existing at all.
 
 ### 1. `Container` rendered a self-closing `<div />`
@@ -444,6 +497,132 @@ dedicated CI job and `scripts/check-bailout.mjs` now guard all three static
 pages, and assert that expected copy is present so an empty page cannot pass
 vacuously.
 
+### 5. Turso write path silently invisible in the dashboard
+
+This one only exists on the production transport, and it is the worst of the
+five because it looks like a working product.
+
+Swapping Prisma's driver to libSQL changed how `DateTime` is **written**, even
+though the dialect, the schema and every query were identical:
+
+```text
+classic engine  ->  typeof(createdAt) = integer   1790691623861
+libSQL adapter  ->  typeof(createdAt) = text      2026-09-29T14:20:45.811+00:00
+```
+
+SQLite's ordering rules put **all TEXT above every INTEGER**. Two consequences:
+
+- `windowTotals` filters `createdAt < toMs`, so every adapter-written row
+  compared as "greater than any integer" and was excluded. `pageviews` read
+  **0**.
+- `strftime(createdAt / 1000, 'unixepoch')` returns `NULL` for text, so the
+  traffic chart had no buckets at all.
+
+**Why it was so easy to miss.** The seeded demo rows are written by the seed
+script through the classic engine, so they were still integers and still
+rendered. The deployed dashboard would have shown a plausible-looking chart of
+*historical* data while collecting nothing new, indefinitely. Everything I
+checked - build, typecheck, lint, the landing page - was green, because the
+schema and the SQL were both correct.
+
+**Detection.** Running the app's own smoke suite against the adapter transport
+rather than only against SQLite. The suite creates a site, collects a pageview,
+then asserts the pageview is visible in `/api/stats`; it reported
+`pageviews 0` while `/api/events` showed the row plainly present.
+
+**Fix.** The adapter takes a `timestampFormat` option. Setting it to
+`unixepoch-ms` makes the write path byte-identical to the classic engine:
+
+```ts
+new PrismaLibSQL({ url, authToken }, { timestampFormat: "unixepoch-ms" })
+```
+
+`pnpm verify:libsql` now asserts this permanently: it writes one row through
+each transport, compares `typeof(createdAt)`, and checks that both rows fall
+inside the dashboard's window filter. It is part of `verify.sh` and of CI.
+
+A related trap in the same file: `new PrismaClient()` without an explicit
+`datasourceUrl` silently falls back to `DATABASE_URL`. The first version of the
+parity test made exactly that mistake, so it compared two *different* databases
+and passed vacuously. Both clients are now pinned to the same file.
+
+---
+
+## Private preview on Vercel + Turso
+
+The preview runs the same Next.js app on Vercel serverless functions with
+Turso (libSQL) as the database. **No query, schema, or aggregation code
+changes** — Turso speaks the SQLite dialect, so `strftime(createdAt / 1000,
+'unixepoch')` and the `BUCKET_SQL` map work exactly as they do on SQLite. Only
+the transport changes, in `lib/prisma.ts`.
+
+### One-time setup
+
+```bash
+# 1. Create the database and a token
+turso db create bunnymetrics-preview
+turso db show bunnymetrics-preview --url
+turso db tokens create bunnymetrics-preview
+
+# 2. Put them in .env (gitignored) and on Vercel
+TURSO_DATABASE_URL="libsql://your-db.turso.io"
+TURSO_AUTH_TOKEN="eyJ..."
+
+# 3. Push the schema
+pnpm turso:push            # or: pnpm turso:push --dry-run to inspect the DDL
+```
+
+`prisma db push` and `migrate deploy` cannot reach Turso, because the Prisma
+CLI does not speak libSQL over HTTP. `scripts/turso-push.mjs` bridges that: it
+renders the DDL with `prisma migrate diff`, then executes it against Turso's
+`/v2/pipeline` endpoint in one request. It checks `sqlite_master` first, so it
+is safe to re-run.
+
+> The Turso CLI currently ships Darwin and Linux binaries only. On Windows, run
+> the four commands above from WSL, or use the dashboard at
+> `turso.com` and the HTTP API directly.
+
+### Deploy
+
+```bash
+vercel --prod
+```
+
+Then set the same three variables in **Vercel → Project → Settings → Environment
+Variables** (`NEXTAUTH_SECRET`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, plus
+`NEXTAUTH_URL` and `NEXT_PUBLIC_APP_URL` set to the deployment URL).
+
+To make the preview private: **Vercel → Settings → Deployment Protection →
+Vercel Authentication**. That gates every route behind a Vercel account, which
+also means Vercel's own edge sets `x-vercel-ip-*`, so the geography panels are
+populated with no extra configuration.
+
+### What `vercel.json` handles
+
+`serverExternalPackages` in `next.config.mjs` keeps Prisma and the libSQL client
+out of the function bundle — they open their own sockets and load their own
+engines at runtime. The build command runs `prisma generate` before `next
+build`, and `installCommand` uses the frozen pnpm lockfile.
+
+### Verifying the Turso transport locally
+
+You do not need a Turso account to exercise the adapter. libSQL opens ordinary
+SQLite files, so:
+
+```bash
+# 1. Prove the transport is equivalent (no network, no credentials)
+pnpm verify:libsql
+
+# 2. Or run the whole app through the adapter
+cp prisma/dev.db /tmp/probe.db      # Windows: any path works with backslashes
+TURSO_DATABASE_URL="file:/tmp/probe.db" pnpm start
+node scripts/smoke-test.mjs         # 80/80
+```
+
+Both paths are part of `verify.sh` and CI. See
+[bug 5](#5-turso-write-path-silently-invisible-in-the-dashboard) for the
+failure this catches.
+
 ---
 
 ## Project layout
@@ -503,10 +682,12 @@ vacuously.
 │   ├── verify.sh                  # everything, in order
 │   ├── check-bailout.mjs          # guards against the CSR bailout regression
 │   ├── check-tracking-size.mjs    # enforces the 2 KB budget
-│   ├── smoke-test.mjs             # 74 API/auth/ingestion assertions
+│   ├── smoke-test.mjs             # 80 API/auth/ingestion assertions
 │   ├── dashboard-test.mjs         # 38 rendered-dashboard assertions
 │   ├── run-smoke.mjs              # boots a server, runs a suite, tears down
-│   └── verify-stats.ts            # exercises the aggregation engine directly
+│   ├── verify-stats.ts            # exercises the aggregation engine directly
+│   ├── verify-libsql-adapter.ts   # proves the Turso transport matches SQLite
+│   └── turso-push.mjs             # applies the schema to Turso over HTTP
 ├── .github/
 │   ├── ISSUE_TEMPLATE/            # bug report, feature request, config
 │   └── workflows/                 # ci.yml, bailout-check.yml
@@ -650,6 +831,8 @@ Individually:
 | `node scripts/check-bailout.mjs` | prerender guard (needs a prior build) |
 | `node scripts/check-tracking-size.mjs` | 2 KB budget |
 | `pnpm verify:stats` | exercise the aggregation engine directly |
+| `pnpm verify:libsql` | prove the Turso transport matches SQLite (no credentials needed) |
+| `pnpm turso:push` | apply the schema to Turso; `--dry-run` inspects the DDL |
 
 ---
 
@@ -715,8 +898,12 @@ Individually:
   single Node process can be flooded; put a limit at your CDN.
 - **[ ] No funnel or retention views.** `/api/stats` returns enough shape to
   build both client-side.
-- **[ ] Countries are empty without a CDN.** By design — see
-  [the privacy section](#why-country-comes-from-cdn-headers).
+- **[ ] Geography is empty without a CDN.** By design — see
+  [the privacy section](#why-country-comes-from-cdn-headers). Vercel and
+  Cloudflare both work out of the box; a bare origin gets nothing.
+- **[ ] City is stored but not surfaced.** Collected from `x-vercel-ip-city` /
+  `cf-ipcity` alongside country. The `city` column is written and included in the
+  CSV export, but no dashboard panel reads it yet.
 - **[ ] Mock billing only.** Real Stripe keys flip the `mode` flag; the
   `checkout.sessions.create` call is not written.
 - **[ ] SQLite has no row-level security.** Tenant isolation is enforced in the
@@ -745,13 +932,21 @@ script is not executing; check for a CSP `script-src` block.
 **`db push` asks to accept data loss** — expected when adding a unique index to a
 populated column. Safe on an empty table; back up first in production.
 
-**Countries are empty** — that panel needs a CDN header. Without Cloudflare,
-Vercel or similar in front, no country is recorded. See
-[why country comes from CDN headers](#why-country-comes-from-cdn-headers).
+**Geography panels are empty** — they need a CDN header. Vercel sets
+`x-vercel-ip-country` / `x-vercel-ip-city` and Cloudflare sets `cf-ipcountry` /
+`cf-ipcity` automatically; a bare origin with neither gets nothing, by design.
+See [why country comes from CDN headers](#why-country-comes-from-cdn-headers).
 
-**Charts are empty but the stat cards have numbers** — this is bugs 2 and 3 from
-the postmortem. `pnpm verify:stats` will either show populated buckets or throw
-the explicit invariant error naming the range.
+**Charts are empty but the stat cards have numbers** — this is bugs 2, 3 and 5
+from the postmortem. `pnpm verify:stats` will either show populated buckets or
+throw the explicit invariant error naming the range; `pnpm verify:libsql` covers
+the Turso variant.
+
+**Turso collects events but the dashboard shows none** — check that
+`lib/prisma.ts` still passes `{ timestampFormat: "unixepoch-ms" }` to
+`PrismaLibSQL`. Without it the adapter writes dates as text and every new row is
+excluded from the aggregation. `pnpm verify:libsql` fails loudly if it regresses.
+That is [bug 5](#5-turso-write-path-silently-invisible-in-the-dashboard).
 
 **`Failed to patch ESLint`** — you are installing with pnpm's default isolated
 linker. `.npmrc` should set `node-linker=hoisted`; check it is not overridden by

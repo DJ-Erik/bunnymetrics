@@ -67,8 +67,18 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Prerender bailout guard
+        run: node scripts/check-bailout.mjs
+
       - name: Seed demo data
         run: pnpm db:seed
+
+      - name: libSQL driver adapter parity
+        # Guards the Turso production transport: proves the libSQL adapter
+        # stores DateTime as integer epoch-ms exactly like the classic engine,
+        # so the strftime bucketing in lib/stats.ts behaves identically. Needs
+        # the seeded database, so it runs after the seed step.
+        run: pnpm verify:libsql
 
       - name: Start production server
         run: |

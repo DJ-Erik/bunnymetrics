@@ -88,10 +88,17 @@ if $PM build; then ok "production build succeeded"; else fail "build failed"; ex
 step "Prerender bailout guard"
 if node scripts/check-bailout.mjs; then ok "static pages fully server-rendered"; else fail "CSR bailout detected"; fi
 
-# --- 6. seed + serve + test -------------------------------------------------
 step "Seed demo data"
 if $PM db:seed; then ok "demo data loaded"; else fail "seed failed"; fi
 
+step "libSQL driver adapter parity"
+# Runs the real adapter against a copy of the seeded database and asserts the
+# storage format, the strftime bucketing and every range's totals are identical
+# to the classic engine. This is what catches a Turso deployment silently
+# collecting traffic the dashboard cannot see.
+if $PM verify:libsql; then ok "adapter matches the classic engine"; else fail "libSQL adapter diverged"; fi
+
+# --- 6. seed + serve + test -------------------------------------------------
 step "Start production server on :${PORT}"
 $PM start > server.log 2>&1 &
 SERVER_PID=$!
