@@ -1,0 +1,58 @@
+name: Bailout guard
+
+# The landing page must stay fully server-rendered. A single `useSearchParams`
+# or `usePathname` in a statically prerendered route makes Next.js discard the
+# subtree and emit a `BAILOUT_TO_CLIENT_SIDE_RENDERING` marker, which costs SEO
+# and produces a blank first paint. That regression shipped once already, so it
+# is now a hard failure.
+#
+# This reads the prerendered HTML emitted by `next build` rather than booting a
+# server: same artifact, no port, no polling, deterministic.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: bailout-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  bailout:
+    name: No CSR bailout on static pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create local env file
+        run: cp .env.example .env
+
+      - name: Build
+        run: pnpm build
+
+      - name: Check prerendered pages
+        run: node scripts/check-bailout.mjs
+
+      - name: Check tracking script budget
+        run: node scripts/check-tracking-size.mjs

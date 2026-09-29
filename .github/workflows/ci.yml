@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Only one run per ref at a time; a new push supersedes an in-flight one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, lint, build, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      # Non-production defaults so NextAuth issues cookies for this origin and
+      # Prisma can find the SQLite file. `.env` is gitignored, so it is created
+      # from the example in the step below.
+      NEXTAUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ci-secret-not-for-production-use-only
+      DATABASE_URL: file:./dev.db
+      BASE: http://localhost:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create local env file
+        # Next.js and Prisma both read `.env`; the env block above supplies the
+        # values CI needs, this file keeps the CLI and the app in agreement.
+        run: cp .env.example .env
+
+      - name: Generate Prisma client
+        run: pnpm prisma generate
+
+      - name: Create database
+        run: pnpm prisma db push --skip-generate --accept-data-loss
+
+      - name: Typecheck
+        run: pnpm tsc --noEmit
+
+      - name: Lint
+        run: pnpm next lint --max-warnings=200
+
+      - name: Build
+        run: pnpm build
+
+      - name: Seed demo data
+        run: pnpm db:seed
+
+      - name: Start production server
+        run: |
+          nohup pnpm start > server.log 2>&1 &
+          echo $! > server.pid
+          for i in $(seq 1 60); do
+            if curl -sf "$BASE" > /dev/null 2>&1; then
+              echo "Server ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Server did not become ready within 60s"
+          cat server.log
+          exit 1
+
+      - name: API smoke tests
+        run: node scripts/smoke-test.mjs
+
+      - name: Dashboard render tests
+        run: node scripts/dashboard-test.mjs
+
+      - name: Verify tracking script budget
+        run: node scripts/check-tracking-size.mjs
+
+      - name: Upload server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-log
+          path: server.log
+          retention-days: 7
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill "$(cat server.pid)" 2>/dev/null || true
+          fi
