@@ -1,0 +1,167 @@
+// BunnyMetrics — Prisma schema
+// Datasource: SQLite (zero-config local dev). Swap `provider` to `postgresql`
+// and the datasource url for production; the models are provider-agnostic.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// A person who can own one or more tracked properties.
+model User {
+  id            String   @id @default(cuid())
+  name          String?
+  email         String   @unique
+  emailVerified DateTime?
+  image         String?
+  /// bcrypt hash — never expose this field through any API response.
+  password      String
+  plan          String   @default("hobby")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sites      Site[]
+  sessions   Session[]
+  accounts   Account[]
+  apiTokens  ApiToken[]
+  subscribers Subscriber[]
+}
+
+/// NextAuth credential sessions (kept minimal — the app uses JWT strategy,
+/// but the model is present so migrations stay stable if it flips to DB).
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+/// A tracked property (one website). `publicId` is what the browser script
+/// reports against; `id` is the internal relational key.
+model Site {
+  id        String   @id @default(cuid())
+  publicId  String   @unique
+  name      String
+  domain    String
+  /// Free-form label so users can group e.g. "Production" vs "Staging".
+  environment String @default("production")
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events Event[]
+
+  @@index([userId])
+}
+
+/// One tracked hit. Deliberately flat + denormalised: this table is the hot
+/// path, so writes must never require a join.
+model Event {
+  id        String   @id @default(cuid())
+  /// References `Site.publicId` — the key the browser script reports against.
+  siteId    String
+  type      String   @default("pageview")
+  path      String
+  title     String?
+  referrer  String?
+  /// First-party, rotating, no PII. See public/tracking.js.
+  visitorId String
+  sessionId String?
+  country   String?
+  region    String?
+  city      String?
+  browser   String?
+  os        String?
+  device    String?
+  screenW   Int?
+  screenH   Int?
+  language  String?
+  /// Seconds spent on the page, reported on pagehide.
+  duration  Int?
+  /// Max scroll depth percentage.
+  scroll    Int?
+  createdAt DateTime @default(now())
+
+  site Site @relation(fields: [siteId], references: [publicId], onDelete: Cascade)
+
+  @@index([siteId, createdAt])
+  @@index([siteId, path])
+  @@index([siteId, visitorId])
+  @@index([siteId, type])
+  @@index([siteId, country])
+  @@index([siteId, referrer])
+  @@index([siteId, browser])
+  @@index([siteId, os])
+  @@index([siteId, device])
+}
+
+/// Long-lived API keys for server-to-server ingestion.
+model ApiToken {
+  id        String    @id @default(cuid())
+  name      String
+  prefix    String   @unique
+  hash      String
+  lastUsedAt DateTime?
+  expiresAt DateTime?
+  userId    String
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Stripe webhook bookkeeping (mock mode included, so the table is always safe
+/// to write to even without Stripe keys configured).
+model Subscriber {
+  id                   String   @id @default(cuid())
+  userId               String
+  stripeCustomerId     String?  @unique
+  stripeSubscriptionId String?  @unique
+  stripePriceId        String?
+  plan                 String   @default("hobby")
+  status               String   @default("active")
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
