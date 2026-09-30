@@ -101,6 +101,12 @@ step "libSQL driver adapter parity"
 # collecting traffic the dashboard cannot see.
 if $PM verify:libsql; then ok "adapter matches the classic engine"; else fail "libSQL adapter diverged"; fi
 
+step "Turso schema push (protocol shim)"
+# Drives scripts/turso-push.mjs against a local server that speaks the same
+# Hrana /v2/pipeline protocol as Turso, so the DDL, the request shape, auth and
+# idempotency are all exercised without needing a Turso account.
+if $PM verify:turso; then ok "turso:push works against the real protocol"; else fail "turso:push is broken"; fi
+
 # --- 6. seed + serve + test -------------------------------------------------
 step "Start production server on :${PORT}"
 $PM start -p "$PORT" > server.log 2>&1 &

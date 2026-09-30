@@ -59,6 +59,7 @@ Every claim on this page is checked by CI on every push. This is what
 | Tracking budget        | `node scripts/check-tracking-size.mjs` | 2032 B / 2048 B - **16 B to spare**              |
 | Prerender guard        | `node scripts/check-bailout.mjs`    | 3/3 pages fully server-rendered                     |
 | libSQL adapter parity  | `pnpm verify:libsql`                | **24 / 24** - Turso transport matches SQLite         |
+| Turso schema push      | `pnpm verify:turso`                 | **26 / 26** - DDL, auth, idempotency, error paths    |
 | API suite (SQLite)     | `node scripts/smoke-test.mjs`       | **82 / 82**                                         |
 | API suite (libSQL)     | same, `TURSO_DATABASE_URL` set     | **82 / 82**                                         |
 | Dashboard render suite | `node scripts/dashboard-test.mjs`   | **38 / 38**                                         |
@@ -606,8 +607,16 @@ pnpm turso:push            # or: pnpm turso:push --dry-run to inspect the DDL
 `prisma db push` and `migrate deploy` cannot reach Turso, because the Prisma
 CLI does not speak libSQL over HTTP. `scripts/turso-push.mjs` bridges that: it
 renders the DDL with `prisma migrate diff`, then executes it against Turso's
-`/v2/pipeline` endpoint in one request. It checks `sqlite_master` first, so it
-is safe to re-run.
+`/v2/pipeline` endpoint. It checks `sqlite_master` first, so it is safe to
+re-run.
+
+That script is integration-tested without a Turso account. `pnpm verify:turso`
+stands up a local server speaking the same Hrana `/v2/pipeline` protocol against
+a real SQLite file, then drives the script against it and asserts the tables,
+columns, bearer-token handling, idempotency and failure modes. That test found
+two real defects that would have broken the actual deploy - a dangling
+`statements` reference that crashed the script on every run, and a wrong
+`rows_affected` path. Both run in `verify.sh` and CI.
 
 > The Turso CLI currently ships Darwin and Linux binaries only. On Windows, run
 > the four commands above from WSL, or use the dashboard at
@@ -718,6 +727,7 @@ failure this catches.
 │   ├── run-smoke.mjs              # boots a server, runs a suite, tears down
 │   ├── verify-stats.ts            # exercises the aggregation engine directly
 │   ├── verify-libsql-adapter.ts   # proves the Turso transport matches SQLite
+│   ├── verify-turso-push.mjs      # integration-tests turso-push over Hrana protocol
 │   └── turso-push.mjs             # applies the schema to Turso over HTTP
 ├── .github/
 │   ├── ISSUE_TEMPLATE/            # bug report, feature request, config
@@ -864,6 +874,7 @@ Individually:
 | `node scripts/check-tracking-size.mjs` | 2 KB budget |
 | `pnpm verify:stats` | exercise the aggregation engine directly |
 | `pnpm verify:libsql` | prove the Turso transport matches SQLite (no credentials needed) |
+| `pnpm verify:turso` | integration-test `turso:push` against a local protocol shim |
 | `pnpm turso:push` | apply the schema to Turso; `--dry-run` inspects the DDL |
 
 ---

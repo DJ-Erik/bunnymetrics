@@ -148,17 +148,22 @@ async function main() {
     throw new Error("Prisma produced an empty schema diff.");
   }
 
+  // libSQL's pipeline accepts one statement per request.
+  const statements = splitStatements(sql).map((s) => ({
+    type: "execute",
+    stmt: { sql: s },
+  }));
+
   console.log(`  applying ${statements.length} statements`);
 
-  const results = await pipeline(
-    // libSQL's pipeline accepts one statement per request.
-    splitStatements(sql).map((s) => ({ type: "execute", stmt: { sql: s } })),
-  );
+  const results = await pipeline(statements);
+
+  // Hrana nests the count at response.result.affected_row_count.
   const affected = results.reduce(
-    (sum, r) => sum + Number(r?.response?.rows_affected ?? 0),
+    (sum, r) => sum + Number(r?.response?.result?.affected_row_count ?? 0),
     0,
   );
-  console.log(`  done (${affected} rows affected)`);
+  console.log(`  done (${affected} statements executed)`);
 
   const after = await existingTables();
   console.log(`  tables now present: ${after.join(", ") || "none"}`);

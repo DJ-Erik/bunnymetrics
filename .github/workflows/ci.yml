@@ -83,6 +83,9 @@ jobs:
         # the seeded database, so it runs after the seed step.
         run: pnpm verify:libsql
 
+      - name: Turso schema push (protocol shim)
+        run: pnpm verify:turso
+
       - name: Start production server
         run: |
           nohup pnpm start > server.log 2>&1 &
