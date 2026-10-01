@@ -1,0 +1,26 @@
+# Keep the deployment upload small and free of local state.
+# The build itself runs on Vercel, so only source is needed.
+
+node_modules
+.next
+.git
+.vercel
+
+# Local database and verification scratch — never upload a real data file.
+prisma/*.db
+prisma/*.db-journal
+.verify-adapter
+
+# Secrets. Vercel env vars are set with `vercel env add` / the dashboard.
+.env
+.env.local
+.env.*.local
+
+# Local server output and tool caches.
+server.log
+server.err
+server.pid
+server-adapter.log
+*.tsbuildinfo
+.turbo
+coverage
