@@ -1,8 +1,9 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import Link from "next/link";
+
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -11,7 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Lock, Mail } from "lucide-react";
 
-export function LoginForm() {
+import { Link } from "@/i18n/navigation";
+
+export function LoginForm({ locale }: { locale: string }) {
+  const t = useTranslations("auth.login");
   const router = useRouter();
 
   const [email, setEmail] = React.useState("");
@@ -20,14 +24,18 @@ export function LoginForm() {
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
   // Read post-login redirect after mount rather than via useSearchParams, so
-  // the page stays fully prerenderable instead of bailing to client rendering.
+  // the page stays fully prerendered instead of bailing to client rendering.
   const [callbackUrl, setCallbackUrl] = React.useState("/dashboard");
   React.useEffect(() => {
-    const target = new URLSearchParams(window.location.search).get("callbackUrl");
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get("callbackUrl");
     if (target && target.startsWith("/") && !target.startsWith("//")) {
       setCallbackUrl(target);
     }
   }, []);
+
+  /** Stay in the active language after signing in. */
+  const home = locale === "en" ? "/dashboard" : `/${locale}/dashboard`;
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,15 +50,15 @@ export function LoginForm() {
       });
 
       if (result?.error) {
-        setErrors({ form: "That email and password don't match an account." });
+        setErrors({ form: t("error") });
         return;
       }
 
-      toast.success("Welcome back");
-      router.push(callbackUrl);
+      toast.success(t("success"));
+      router.push(callbackUrl === "/dashboard" ? home : callbackUrl);
       router.refresh();
     } catch {
-      setErrors({ form: "Something went wrong. Please try again." });
+      setErrors({ form: t("error") });
     } finally {
       setPending(false);
     }
@@ -66,17 +74,13 @@ export function LoginForm() {
     <div className="w-full max-w-md">
       <div className="glass-strong sheen rounded-3xl p-7 sm:p-8">
         <div className="text-center">
-          <h1 className="font-display text-2xl font-bold tracking-tight">
-            Welcome back
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Sign in to see what your visitors are doing.
-          </p>
+          <h1 className="font-display text-2xl font-bold tracking-tight">{t("title")}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
 
         <form onSubmit={onSubmit} className="mt-7 space-y-4" noValidate>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("email")}</Label>
             <div className="relative">
               <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -94,7 +98,7 @@ export function LoginForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("password")}</Label>
             <div className="relative">
               <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -124,19 +128,17 @@ export function LoginForm() {
             {pending ? (
               <>
                 <Loader2 className="animate-spin" />
-                Signing in…
+                {t("submitting")}
               </>
             ) : (
-              "Sign in"
+              t("submit")
             )}
           </Button>
         </form>
 
         <div className="mt-6 rounded-xl border border-border/60 bg-background/40 p-4">
-          <p className="text-xs font-medium">Want to look around first?</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Use the seeded demo account with 30 days of realistic traffic.
-          </p>
+          <p className="text-xs font-medium">{t("demoTitle")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("demoBody")}</p>
           <Button
             type="button"
             variant="subtle"
@@ -144,18 +146,18 @@ export function LoginForm() {
             className="mt-3 w-full"
             onClick={fillDemo}
           >
-            Use demo credentials
+            {t("demoButton")}
           </Button>
         </div>
       </div>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{" "}
+        {t("noAccount")}{" "}
         <Link
           href="/signup"
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
-          Start free
+          {t("startFree")}
         </Link>
       </p>
     </div>

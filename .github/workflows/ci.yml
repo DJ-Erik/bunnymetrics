@@ -70,6 +70,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Message catalogues
+        # A missing key is not a build error in next-intl: it renders the key
+        # path itself and fails silently in production.
+        run: node scripts/check-messages.mjs
+
       - name: Prerender bailout guard
         run: node scripts/check-bailout.mjs
 
@@ -103,6 +108,19 @@ jobs:
 
       - name: API smoke tests
         run: node scripts/smoke-test.mjs
+
+      - name: i18n content checks
+        # Each locale must serve its own copy, with no bleed-through in either
+        # direction, and mark the active locale as current.
+        run: |
+          node scripts/check-locale-content.mjs en
+          node scripts/check-locale-content.mjs it
+
+      - name: i18n routing and cookie negotiation
+        # Guards the negotiation around the copy: the Italian cookie wins over
+        # the English canonical URL, switching back to English clears that bias,
+        # the choice persists, and /api + /tracking.js are never locale-routed.
+        run: node scripts/check-i18n-routing.mjs
 
       - name: Dashboard render tests
         run: node scripts/dashboard-test.mjs

@@ -2,6 +2,7 @@
 
 import { Globe } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 
 import {
@@ -11,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { defaultLocale } from "@/lib/locales";
 import { cn } from "@/lib/utils";
 
 type Site = {
@@ -28,12 +30,15 @@ const ENV_COLOR: Record<string, string> = {
 };
 
 export function SiteSwitcher({
+  locale,
   sites,
   className,
 }: {
+  locale: string;
   sites: Site[];
   className?: string;
 }) {
+  const t = useTranslations("dashboard.nav");
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, startTransition] = React.useTransition();
@@ -42,12 +47,13 @@ export function SiteSwitcher({
   // sync with the page, without the layout needing the search params.
   const fromUrl = searchParams.get("site");
   const active = sites.find((site) => site.publicId === fromUrl) ?? sites[0];
+  const prefix = locale === defaultLocale ? "" : `/${locale}`;
 
   function onChange(publicId: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("site", publicId);
     startTransition(() => {
-      router.push(`/dashboard?${params.toString()}`);
+      router.push(`${prefix}/dashboard?${params.toString()}`);
     });
   }
 
@@ -61,7 +67,7 @@ export function SiteSwitcher({
           pending && "opacity-60",
           className,
         )}
-        aria-label="Switch site"
+        aria-label={t("overview")}
       >
         <Globe className="size-4 shrink-0 text-muted-foreground" />
         <SelectValue>

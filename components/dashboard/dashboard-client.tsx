@@ -1,7 +1,8 @@
 "use client";
 
-import { Clock, Eye, MousePointerClick, TrendingUp, Users } from "lucide-react";
+import { Clock, Eye, MousePointerClick, Users } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -14,10 +15,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RANGES, type Range } from "@/lib/validations";
-import { formatNumber, percentChange } from "@/lib/utils";
+import { formatNumber } from "@/lib/utils";
+import { defaultLocale } from "@/lib/locales";
 
 type Stats = {
   range: Range;
@@ -49,18 +50,27 @@ type Stats = {
 };
 
 export function DashboardClient({
+  locale,
   sitePublicId,
   domain,
   initialStats,
   planLimit,
 }: {
+  locale: string;
   sitePublicId: string;
   domain: string;
   initialStats: Stats;
   planLimit: number;
 }) {
+  const t = useTranslations("dashboard");
+  const ts = useTranslations("dashboard.stats");
+  const tb = useTranslations("dashboard.breakdown");
+  const th = useTranslations("dashboard.header");
+  const tu = useTranslations("dashboard.usage");
+
   const router = useRouter();
   const searchParams = useSearchParams();
+  const prefix = locale === defaultLocale ? "" : `/${locale}`;
 
   const rangeParam = (searchParams.get("range") ?? "7d") as Range;
   const range: Range = (RANGES as readonly string[]).includes(rangeParam)
@@ -70,19 +80,15 @@ export function DashboardClient({
   const [stats, setStats] = React.useState<Stats>(initialStats);
   const [loading, setLoading] = React.useState(false);
 
-  // Reset immediately when the site or range changes, before the fetch lands.
   React.useEffect(() => {
-    if (initialStats.range !== stats.range) {
-      setStats(initialStats);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setStats(initialStats);
   }, [initialStats]);
 
   function setRange(next: Range) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("site", sitePublicId);
     params.set("range", next);
-    router.push(`/dashboard?${params.toString()}`, { scroll: false });
+    router.push(`${prefix}/dashboard?${params.toString()}`, { scroll: false });
   }
 
   async function loadRange(next: Range) {
@@ -100,18 +106,13 @@ export function DashboardClient({
       delete payload.site;
       setStats(payload);
     } catch {
-      toast.error("Couldn't load that range — reverting");
+toast.error(th("rangeError"));
       setRange(range);
       setStats(previous);
     } finally {
       setLoading(false);
     }
   }
-
-  // Reset for a different site.
-  React.useEffect(() => {
-    setStats(initialStats);
-  }, [sitePublicId, initialStats]);
 
   function exportCsv() {
     const url = `/api/events?site=${encodeURIComponent(sitePublicId)}&format=csv&limit=1000`;
@@ -121,7 +122,7 @@ export function DashboardClient({
   const statCards: StatCardData[] = [
     {
       key: "visitors",
-      label: "Unique visitors",
+      label: ts("visitors"),
       value: stats.totals.visitors,
       change: stats.change.visitors,
       kind: "number",
@@ -129,7 +130,7 @@ export function DashboardClient({
     },
     {
       key: "pageviews",
-      label: "Pageviews",
+      label: ts("pageviews"),
       value: stats.totals.pageviews,
       change: stats.change.pageviews,
       kind: "number",
@@ -137,22 +138,22 @@ export function DashboardClient({
     },
     {
       key: "bounce",
-      label: "Bounce rate",
+      label: ts("bounce"),
       value: stats.totals.bounceRate,
       change: -stats.change.bounceRate,
       kind: "percent",
       icon: MousePointerClick,
       invertChange: true,
-      hint: "single-page sessions",
+      hint: ts("bounceHint"),
     },
     {
       key: "duration",
-      label: "Avg. time on page",
+      label: ts("duration"),
       value: stats.totals.avgDuration,
       change: 0,
       kind: "duration",
       icon: Clock,
-      hint: "across all pages",
+      hint: ts("durationHint"),
     },
   ];
 
@@ -170,13 +171,15 @@ export function DashboardClient({
               {domain}
             </h1>
             <Badge variant="secondary" className="capitalize">
-              Overview
+              {th("overview")}
             </Badge>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            {stats.totals.sessions.toLocaleString()} sessions ·{" "}
-            {stats.totals.viewsPerVisitor.toFixed(1)} pages per visitor ·{" "}
-            {formatNumber(stats.totals.events)} events
+            {th("sessions", {
+              count: stats.totals.sessions.toLocaleString(),
+              perVisitor: stats.totals.viewsPerVisitor.toFixed(1),
+              events: formatNumber(stats.totals.events),
+            })}
           </p>
         </div>
 
@@ -191,7 +194,7 @@ export function DashboardClient({
             </TabsList>
           </Tabs>
           <Button variant="outline" size="sm" onClick={exportCsv}>
-            Export CSV
+            {t("export")}
           </Button>
         </div>
       </div>
@@ -208,23 +211,23 @@ export function DashboardClient({
 
         <div className="grid gap-4 xl:grid-cols-3">
           <div className="xl:col-span-2">
-            <TopPagesTable
-              data={stats.topPages}
-              loading={loading}
-              domain={domain}
-            />
+            <TopPagesTable data={stats.topPages} loading={loading} domain={domain} />
           </div>
           <ReferrersCard data={stats.referrers} loading={loading} />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <BreakdownCard title="Devices" items={stats.devices} loading={loading} />
-          <BreakdownCard title="Browsers" items={stats.browsers} loading={loading} />
-          <BreakdownCard title="Operating systems" items={stats.operatingSystems} loading={loading} />
+          <BreakdownCard title={tb("devices")} items={stats.devices} loading={loading} />
+          <BreakdownCard title={tb("browsers")} items={stats.browsers} loading={loading} />
           <BreakdownCard
-            title="Countries"
+            title={tb("os")}
+            items={stats.operatingSystems}
+            loading={loading}
+          />
+          <BreakdownCard
+            title={tb("countries")}
             items={stats.countries.map((c) => ({
-              label: countryName(c.label),
+              label: countryName(c.label, locale),
               value: c.value,
             }))}
             loading={loading}
@@ -232,12 +235,12 @@ export function DashboardClient({
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-          <InstallCard sitePublicId={sitePublicId} domain={domain} />
+          <InstallCard locale={locale} sitePublicId={sitePublicId} domain={domain} />
 
           <Card glass id="billing" className="h-fit scroll-mt-20">
             <CardContent className="p-6">
               <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Plan usage
+                {tu("title")}
               </p>
               <p className="mt-3 font-display text-3xl font-bold tabular-nums">
                 {formatNumber(stats.totals.events)}
@@ -247,14 +250,14 @@ export function DashboardClient({
               </p>
               <Progress value={usagePercent} className="mt-3" />
               <p className="mt-2 text-xs text-muted-foreground">
-                Events counted in the last {stats.range.replace("d", " days")}.
+                {tu("counted", { days: stats.range.replace("d", "") })}
               </p>
 
               <div className="mt-5 space-y-2 border-t border-border/60 pt-4 text-xs">
                 {[
-                  ["Events", stats.totals.events],
-                  ["Pageviews", stats.totals.pageviews],
-                  ["Sessions", stats.totals.sessions],
+                  [ts("events"), stats.totals.events],
+                  [ts("pageviews"), stats.totals.pageviews],
+                  [ts("sessions"), stats.totals.sessions],
                 ].map(([label, value]) => (
                   <div key={String(label)} className="flex justify-between">
                     <span className="text-muted-foreground">{label}</span>
@@ -266,39 +269,34 @@ export function DashboardClient({
               </div>
 
               <Button variant="outline" size="sm" className="mt-5 w-full" asChild>
-                <a href="#install">
-                  <TrendingUp />
-                  Install &amp; manage
-                </a>
+                <a href="#install">{tu("install")}</a>
               </Button>
             </CardContent>
           </Card>
         </div>
 
         <p className="text-center text-[11px] text-muted-foreground/70">
-          Last computed{" "}
-          {new Date(stats.generatedAt).toLocaleString("en-US", {
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}{" "}
-          · all times UTC · visitor IDs rotate every 30 days
+          {t("footer", {
+            time: new Date(stats.generatedAt).toLocaleString(undefined, {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          })}
         </p>
       </div>
     </div>
   );
 }
 
-function countryName(code: string): string {
+function countryName(code: string, locale: string): string {
   try {
     return (
-      new Intl.DisplayNames(["en"], { type: "region" }).of(code.toUpperCase()) ??
+      new Intl.DisplayNames([locale], { type: "region" }).of(code.toUpperCase()) ??
       code
     );
   } catch {
     return code;
   }
 }
-
-export { Skeleton, percentChange };

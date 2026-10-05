@@ -27,11 +27,12 @@ PII stored    none — no IPs, no fingerprints, no names
 - [Quick start](#quick-start)
 - [Demo accounts](#demo-accounts)
 - [Install the tracker](#install-the-tracker)
+- [Internationalisation: English and Italian](#internationalisation-english-and-italian)
 - [Architecture](#architecture)
   - [Request path](#request-path)
   - [The aggregation engine](#the-aggregation-engine)
   - [Why country comes from CDN headers](#why-country-comes-from-cdn-headers)
-- [Postmortem: four bugs worth knowing about](#postmortem-four-bugs-worth-knowing-about)
+- [Postmortem: six bugs worth knowing about](#postmortem-six-bugs-worth-knowing-about)
 - [Private preview on Vercel + Turso](#private-preview-on-vercel--turso)
 - [Project layout](#project-layout)
 - [API reference](#api-reference)
@@ -55,13 +56,17 @@ Every claim on this page is checked by CI on every push. This is what
 | ---------------------- | ---------------------------------- | --------------------------------------------------- |
 | Typecheck              | `tsc --noEmit`                     | 0 errors, `strict: true`                            |
 | Lint                   | `next lint --max-warnings=200`      | 0 errors, 0 warnings                                |
-| Production build       | `next build`                       | 16 routes, 7 static pages                           |
+| Production build       | `next build`                       | 16 routes, 14 static pages                          |
 | Tracking budget        | `node scripts/check-tracking-size.mjs` | 2032 B / 2048 B - **16 B to spare**              |
-| Prerender guard        | `node scripts/check-bailout.mjs`    | 3/3 pages fully server-rendered                     |
+| Prerender guard        | `node scripts/check-bailout.mjs`    | 6/6 pages fully server-rendered (EN + IT)          |
+| Message catalogues     | `node scripts/check-messages.mjs`   | 340 keys x 2 locales, 0 missing                    |
 | libSQL adapter parity  | `pnpm verify:libsql`                | **24 / 24** - Turso transport matches SQLite         |
 | Turso schema push      | `pnpm verify:turso`                 | **26 / 26** - DDL, auth, idempotency, error paths    |
-| API suite (SQLite)     | `node scripts/smoke-test.mjs`       | **82 / 82**                                         |
-| API suite (libSQL)     | same, `TURSO_DATABASE_URL` set     | **82 / 82**                                         |
+| API suite (SQLite)     | `node scripts/smoke-test.mjs`       | **97 / 97**                                         |
+| API suite (libSQL)     | same, `TURSO_DATABASE_URL` set     | **97 / 97**                                         |
+| Locale content (EN)    | `node scripts/check-locale-content.mjs en` | **24 / 24** - no Italian bleed    |
+| Locale content (IT)    | `node scripts/check-locale-content.mjs it` | **24 / 24** - no English bleed    |
+| i18n routing + cookies | `node scripts/check-i18n-routing.mjs` | **25 / 25** - negotiation, canonical URLs      |
 | Dashboard render suite | `node scripts/dashboard-test.mjs`   | **38 / 38**                                         |
 
 `scripts/verify.sh` runs the API suite **twice** - once on the classic engine
@@ -78,7 +83,7 @@ geography including spoofing attempts, and all four stats ranges.
 
 The tracking size and prerender checks exist because both of those facts were
 wrong at some point, and neither one is visible in a build log. See
-[the postmortem](#postmortem-four-bugs-worth-knowing-about).
+[the postmortem](#postmortem-six-bugs-worth-knowing-about).
 
 ---
 
@@ -190,6 +195,79 @@ curl -X POST "https://your-host/api/events?site=bm_acme_8f2k1" \
 
 ---
 
+## Internationalisation: English and Italian
+
+Two locales, powered by [next-intl](https://next-intl.dev). Copy lives in
+`messages/en.json` and `messages/it.json`; nothing user-facing is hardcoded in a
+component.
+
+```text
+/            English, canonical
+/pricing     (well, /#pricing — pricing is an anchor, not a route)
+/it          Italian
+/it/login    Italian
+/en/login    307 -> /login      one canonical URL per page
+```
+
+`localePrefix: "as-needed"` keeps every existing English URL working untouched —
+important for a project whose whole pitch is "cookie-less and lightweight", since
+links are already pasted into people's READMEs — and makes the unprefixed form the
+canonical one.
+
+### How the locale is chosen
+
+`middleware.ts` negotiates in this order:
+
+1. an explicit locale in the path (`/it/...` wins outright)
+2. the `NEXT_LOCALE` cookie
+3. the `Accept-Language` header (so a first-time Italian visitor lands on `/it`)
+4. English
+
+`/api/*`, `/tracking.js`, `robots.txt` and `sitemap.xml` are excluded from the
+matcher. The collector is fetched cross-origin by every tracked site, so a
+redirect on `/tracking.js` would break analytics for every customer.
+
+### The language switcher costs zero client JavaScript
+
+`components/language-switcher.tsx` renders plain `<a>` elements — no state, no
+effect, no event handler. Persistence is a side effect of the middleware seeing
+an explicit locale prefix.
+
+That is why the English link keeps its `/en` prefix even though the canonical URL
+is unprefixed: linking straight to `/` would give the middleware no signal, and a
+visitor switching Italian → English would be negotiated straight back to `/it` by
+the cookie their previous click left behind. `/en` 308s to the clean URL, so the
+address bar ends up right.
+
+### Two traps worth knowing about
+
+**`setRequestLocale` is mandatory, not decorative.** Any server component that
+reads translations must call it, or next-intl awaits request headers and the
+route silently drops out of static prerendering. `/login` and `/signup` shipped as
+empty shells once because the shared auth layout read `getTranslations` without it.
+`scripts/check-bailout.mjs` now fails the build if that regresses.
+
+**A layout cannot know which route it is rendering.** The auth layout covers both
+`/login` and `/signup`, so the switcher lives in each page — the layout would need
+`headers()` to read the current path, which re-opens the dynamic-rendering trap
+above.
+
+### Adding a string
+
+1. Add the key to **both** catalogues.
+2. Call it via `useTranslations(...)` or `getTranslations(...)`.
+
+```bash
+pnpm test:i18n     # catalogue parity + routing/cookie negotiation
+```
+
+`scripts/check-messages.mjs` reports missing keys, unused namespaces, and values
+identical across locales. A missing key is *not* a build error in next-intl — it
+renders the key path itself (`dashboard.stats.pageviews`) and fails silently in
+production — which is exactly why it needs a gate.
+
+---
+
 ## Architecture
 
 ### Request path
@@ -237,6 +315,28 @@ zero-filled in JS, so a quiet hour renders as a zero rather than a gap.
 
 The dashboard's realtime panel polls `/api/stats?realtime=1` every 10 seconds,
 which is a single `GROUP BY visitorId` over a five-minute window.
+
+### Page requests
+
+`/api/*` is the only path the middleware never sees. Everything else goes through
+locale negotiation first:
+
+```text
+  browser navigates to /it/login
+      │
+      ▼
+  middleware.ts
+      │  1. explicit prefix /it wins outright
+      │  2. else NEXT_LOCALE cookie
+      │  3. else Accept-Language
+      │  4. else English
+      │  persists the choice for a year
+      ▼
+  app/[locale]/(auth)/login/page.tsx
+      │  setRequestLocale(locale)  ← without this the route goes dynamic
+      ▼
+  prerendered HTML, one build artefact per locale
+```
 
 ### Two transports, one client
 
@@ -420,7 +520,7 @@ A Vercel deployment needs no extra work, since Vercel's own edge sets
 
 ---
 
-## Postmortem: five bugs worth knowing about
+## Postmortem: six bugs worth knowing about
 
 The first four passed `tsc`, passed ESLint, and produced a **successful
 `next build`**. None was visible in a log. They were found by asserting on the
@@ -532,7 +632,7 @@ vacuously.
 ### 5. Turso write path silently invisible in the dashboard
 
 This one only exists on the production transport, and it is the worst of the
-five because it looks like a working product.
+six because it looks like a working product.
 
 Swapping Prisma's driver to libSQL changed how `DateTime` is **written**, even
 though the dialect, the schema and every query were identical:
@@ -577,6 +677,37 @@ A related trap in the same file: `new PrismaClient()` without an explicit
 `datasourceUrl` silently falls back to `DATABASE_URL`. The first version of the
 parity test made exactly that mistake, so it compared two *different* databases
 and passed vacuously. Both clients are now pinned to the same file.
+
+### 6. `setRequestLocale` missing emptied two auth pages
+
+The i18n work shipped `/login` and `/signup` as **empty shells**. The build was
+green, the routes returned 200, and `next build` cheerfully reported 14 static
+pages.
+
+The shared auth layout called `getTranslations("auth")` without first calling
+`setRequestLocale(locale)`. next-intl then had no static locale for the
+subtree, so it fell back to awaiting request headers — which opts the route out
+of static rendering entirely. The pages rendered correctly *on a warm server*,
+which is exactly why it survived local testing.
+
+**Why it was so easy to miss.** `next build` exits 0 and still prints
+`✓ Generating static pages (14/14)`. The 14 counts attempts, not successes. The
+only visible symptom is that four HTML files are missing from
+`.next/server/app/`, which nothing in a normal build log mentions.
+
+**Detection.** `scripts/check-bailout.mjs` reads the artifacts on disk and
+asserts each expected page exists, is not a client-side bailout, carries the right
+`<html lang>`, and has both hreflang alternates. It failed with
+`no prerendered HTML at .next\server\app\en\login.html`.
+
+Worth noting how the same guard caught a second, subtler version of this bug a
+few steps later: after moving the language switcher into the auth pages, the
+layout stopped calling `setRequestLocale` at all (it no longer received
+`params`), and both routes silently dropped out of prerendering *again*.
+
+**Fix.** Every server component that reads translations calls
+`setRequestLocale(locale)` first. This is now enforced by the gate rather than by
+memory.
 
 ---
 
@@ -670,11 +801,19 @@ failure this catches.
 ```text
 .
 ├── app/
-│   ├── (auth)/                    # route group: shared auth shell
-│   │   ├── layout.tsx
-│   │   ├── login/page.tsx
-│   │   └── signup/page.tsx
-│   ├── api/
+│   ├── [locale]/                  # every user-facing route, locale-scoped
+│   │   ├── (auth)/                # route group: shared auth shell
+│   │   │   ├── layout.tsx
+│   │   │   ├── login/page.tsx
+│   │   │   └── signup/page.tsx
+│   │   ├── dashboard/             # authenticated shell + guard
+│   │   │   ├── layout.tsx
+│   │   │   └── page.tsx
+│   │   ├── globals.css            # design tokens, glass/aurora/text utilities
+│   │   ├── layout.tsx             # fonts, metadata, theme + session providers
+│   │   ├── not-found.tsx
+│   │   └── page.tsx               # landing page composition
+│   ├── api/                       # deliberately NOT locale-scoped
 │   │   ├── auth/[...nextauth]/    # NextAuth v5 handlers
 │   │   ├── auth/register/         # POST   account creation
 │   │   ├── billing/               # GET    plan + usage
@@ -683,20 +822,23 @@ failure this catches.
 │   │   ├── collect/               # GET|POST  ingestion (hot path)
 │   │   ├── events/                # GET|POST  raw events, CSV export, batch ingest
 │   │   ├── sites/                 # GET|POST  site CRUD
-│   │   │   └── [id]/              # GET|PATCH|DELETE
+│   │   │   └── [id]/              # GET|PATCH/DELETE
 │   │   ├── stats/                 # GET    aggregated dashboard payload
 │   │   └── tokens/                # GET|POST  server API keys
-│   ├── dashboard/                 # authenticated shell + guard
-│   │   ├── layout.tsx
-│   │   └── page.tsx
-│   ├── globals.css                # design tokens, glass/aurora/text utilities
-│   ├── layout.tsx                 # fonts, metadata, theme + session providers
-│   └── page.tsx                   # landing page composition
+│   ├── robots.ts
+│   └── sitemap.ts
+├── i18n.ts                        # next-intl routing + request config
+├── i18n/navigation.ts             # locale-aware Link / redirect / usePathname
+├── middleware.ts                  # locale negotiation + NEXT_LOCALE persistence
+├── messages/
+│   ├── en.json
+│   └── it.json
 ├── components/
 │   ├── ui/                        # 18 shadcn/ui primitives
 │   ├── marketing/                 # 9 landing sections
 │   ├── dashboard/                 # dashboard widgets
 │   ├── auth/                      # login + signup forms
+│   ├── language-switcher.tsx      # EN | IT, zero client JS
 │   ├── motion/reveal.tsx          # Reveal / Stagger / AnimatedNumber
 │   ├── aurora-background.tsx
 │   ├── copy-button.tsx
@@ -705,9 +847,11 @@ failure this catches.
 │   ├── theme-toggle.tsx
 │   └── toaster.tsx
 ├── lib/
+│   ├── alternates.ts              # canonical + hreflang, one place
 │   ├── api.ts                     # API helpers, session + bearer-token auth
 │   ├── auth.ts                    # NextAuth config
 │   ├── guards.ts                  # requireUser() server guard
+│   ├── locales.ts                 # client-safe locale data + path swapping
 │   ├── plans.ts                   # plan definitions
 │   ├── prisma.ts                  # client singleton
 │   ├── stats.ts                   # ALL aggregation SQL lives here
@@ -720,9 +864,12 @@ failure this catches.
 ├── public/tracking.js             # the 1.98 KB tracker
 ├── scripts/
 │   ├── verify.sh                  # everything, in order
-│   ├── check-bailout.mjs          # guards against the CSR bailout regression
+│   ├── check-bailout.mjs          # guards the CSR bailout AND the missing-prerender regression
+│   ├── check-messages.mjs         # catalogue parity across locales
+│   ├── check-locale-content.mjs   # each locale serves its own copy, no bleed
+│   ├── check-i18n-routing.mjs     # negotiation, canonical URLs, cookie persistence
 │   ├── check-tracking-size.mjs    # enforces the 2 KB budget
-│   ├── smoke-test.mjs             # 80 API/auth/ingestion assertions
+│   ├── smoke-test.mjs             # 97 API/auth/ingestion assertions
 │   ├── dashboard-test.mjs         # 38 rendered-dashboard assertions
 │   ├── run-smoke.mjs              # boots a server, runs a suite, tears down
 │   ├── verify-stats.ts            # exercises the aggregation engine directly
@@ -948,6 +1095,11 @@ Individually:
   `Event.city` column is retained but never populated, exported, or displayed;
   `pnpm verify:libsql` fails if a row ever gains a value. Re-enabling is a
   four-line change, documented above.
+- **[ ] Only English and Italian.** Adding a locale means a key in `i18n.ts`, a
+  `messages/<locale>.json`, and a language-switcher entry — `lib/locales.ts` is
+  the single source of truth, and `pnpm test:i18n` fails if the catalogues drift.
+  There are no localised paths (`pathnames`), so a new language cannot rename
+  routes independently; it just prefixes them.
 - **[ ] Mock billing only.** Real Stripe keys flip the `mode` flag; the
   `checkout.sessions.create` call is not written.
 - **[ ] SQLite has no row-level security.** Tenant isolation is enforced in the

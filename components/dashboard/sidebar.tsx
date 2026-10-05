@@ -1,13 +1,14 @@
 "use client";
 
 import { signOut } from "next-auth/react";
-import Link from "next/link";
 import { CreditCard, LayoutDashboard, LogOut, Plus, Settings, User } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 
 import { AddSiteDialog } from "@/components/dashboard/add-site-dialog";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { SiteSwitcher } from "@/components/dashboard/site-switcher";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -22,7 +23,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Link } from "@/i18n/navigation";
 import { initials } from "@/lib/utils";
+import { defaultLocale } from "@/lib/locales";
 
 type Site = {
   id: string;
@@ -33,27 +36,37 @@ type Site = {
 };
 
 export function DashboardSidebar({
+  locale,
   user,
   sites,
 }: {
+  locale: string;
   user: { name?: string | null; email?: string | null; plan?: string };
   sites: Site[];
 }) {
+  const t = useTranslations("dashboard");
+  const tn = useTranslations("nav");
   const router = useRouter();
   const [addOpen, setAddOpen] = React.useState(false);
 
   const displayName = user.name || user.email || "Maker";
+  const prefix = locale === defaultLocale ? "" : `/${locale}`;
 
   return (
     <aside className="hidden h-dvh w-[17rem] shrink-0 flex-col border-r border-border/60 bg-card/40 backdrop-blur-xl lg:flex">
-      <div className="flex h-16 items-center border-b border-border/60 px-5">
-        <Link href="/" className="group rounded-full" aria-label="BunnyMetrics home">
+      <div className="flex h-16 items-center justify-between border-b border-border/60 px-5">
+        <Link href="/" className="group rounded-full" aria-label={tn("home")}>
           <Logo />
         </Link>
+        <LanguageSwitcher
+          locale={locale}
+          currentPath={`${prefix}/dashboard`}
+          label={tn("language")}
+        />
       </div>
 
       <div className="space-y-4 p-4">
-        <SiteSwitcher sites={sites} />
+        <SiteSwitcher locale={locale} sites={sites} />
 
         <Button
           variant="outline"
@@ -61,19 +74,19 @@ export function DashboardSidebar({
           onClick={() => setAddOpen(true)}
         >
           <Plus />
-          Add site
+          {t("nav.addSite")}
         </Button>
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
-        <SidebarLink href="/dashboard" icon={LayoutDashboard} active>
-          Overview
+        <SidebarLink href={`${prefix}/dashboard`} icon={LayoutDashboard} active>
+          {t("nav.overview")}
         </SidebarLink>
-        <SidebarLink href="/dashboard#install" icon={Settings}>
-          Install &amp; API
+        <SidebarLink href={`${prefix}/dashboard#install`} icon={Settings}>
+          {t("nav.install")}
         </SidebarLink>
-        <SidebarLink href="/dashboard#billing" icon={CreditCard}>
-          Billing
+        <SidebarLink href={`${prefix}/dashboard#billing`} icon={CreditCard}>
+          {t("nav.billing")}
         </SidebarLink>
       </nav>
 
@@ -99,31 +112,31 @@ export function DashboardSidebar({
             <DropdownMenuLabel>
               <span className="flex items-center gap-2">
                 <User className="size-3" />
-                {user.plan ?? "hobby"} plan
+                {t("plan", { plan: user.plan ?? "hobby" })}
               </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/dashboard#billing">
+              <Link href={`${prefix}/dashboard#billing`}>
                 <CreditCard />
-                Manage plan
+                {t("managePlan")}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={async () => {
-                await signOut({ callbackUrl: "/" });
-                toast.success("Signed out");
-                router.push("/");
+                await signOut({ callbackUrl: `${prefix}/` });
+toast.success(tn("signedOut"));
+    router.push(locale === defaultLocale ? "/" : `/${locale}`);
               }}
             >
               <LogOut />
-              Sign out
+              {t("signOut")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      <AddSiteDialog open={addOpen} onOpenChange={setAddOpen} />
+      <AddSiteDialog locale={locale} open={addOpen} onOpenChange={setAddOpen} />
     </aside>
   );
 }
@@ -155,25 +168,40 @@ function SidebarLink({
 }
 
 export function MobileDashboardBar({
+  locale,
   user,
   sites,
 }: {
+  locale: string;
   user: { name?: string | null; email?: string | null; plan?: string };
   sites: Site[];
 }) {
-  const [addOpen, setAddOpen] = React.useState(false);
+  const t = useTranslations("dashboard");
+  const tn = useTranslations("nav");
   const router = useRouter();
+  const [addOpen, setAddOpen] = React.useState(false);
+  const prefix = locale === defaultLocale ? "" : `/${locale}`;
 
   return (
     <div className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-xl lg:hidden">
       <div className="flex items-center gap-3 p-3">
-        <Link href="/" className="shrink-0" aria-label="BunnyMetrics home">
+        <Link href="/" className="shrink-0" aria-label="BunnyMetrics">
           <Logo showWordmark={false} />
         </Link>
         <div className="min-w-0 flex-1">
-          <SiteSwitcher sites={sites} />
+          <SiteSwitcher locale={locale} sites={sites} />
         </div>
-        <Button variant="outline" size="icon-sm" onClick={() => setAddOpen(true)} aria-label="Add site">
+        <LanguageSwitcher
+          locale={locale}
+          currentPath={`${prefix}/dashboard`}
+          label={tn("language")}
+        />
+        <Button
+          variant="outline"
+          size="icon-sm"
+          onClick={() => setAddOpen(true)}
+          aria-label={t("nav.addSite")}
+        >
           <Plus />
         </Button>
         <ThemeToggle />
@@ -186,17 +214,19 @@ export function MobileDashboardBar({
           variant="ghost"
           size="xs"
           onClick={async () => {
-            await signOut({ redirectTo: "/" });
-            toast.success("Signed out");
-            router.push("/");
+await signOut({ redirectTo: locale === defaultLocale ? "/" : `/${locale}` });
+            toast.success(tn("signedOut"));
+            router.push(locale === defaultLocale ? "/" : `/${locale}`);
           }}
         >
           <LogOut />
-          Sign out
+          {t("signOut")}
         </Button>
       </div>
 
-      <AddSiteDialog open={addOpen} onOpenChange={setAddOpen} />
+      <AddSiteDialog locale={locale} open={addOpen} onOpenChange={setAddOpen} />
     </div>
   );
 }
+
+

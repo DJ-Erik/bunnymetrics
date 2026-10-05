@@ -66,7 +66,13 @@ for (const range of ["24h", "7d", "30d"]) {
   // not in the SSR output. Assert the container mounted and that the empty
   // state was NOT hit, plus that the payload carries real series numbers.
   check(`dashboard ${range}: chart container mounted`, html.includes("data-chart"));
-  check(`dashboard ${range}: chart has data`, !html.includes("No traffic in this period"));
+  // Assert the chart markup rather than the absence of a string: next-intl
+  // embeds the whole catalogue in the RSC payload, so the empty-state copy is
+  // present in the HTML whether or not the empty state was rendered.
+  check(
+    `dashboard ${range}: chart has data`,
+    html.includes("data-chart") && !html.includes("border-dashed"),
+  );
   check(`dashboard ${range}: series serialised`, /events\\?":\s*\d/.test(html));
   check(`dashboard ${range}: realtime card`, html.includes("Active right now"));
   check(`dashboard ${range}: install snippet`, html.includes(sites[0].publicId));

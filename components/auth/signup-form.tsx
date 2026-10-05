@@ -1,8 +1,8 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import { ArrowRight, Loader2, Lock, Mail, User } from "lucide-react";
@@ -10,14 +10,13 @@ import { ArrowRight, Loader2, Lock, Mail, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Link } from "@/i18n/navigation";
+import { defaultLocale } from "@/lib/locales";
 
-const PERKS = [
-  "10,000 events every month, free",
-  "No credit card, no consent banner",
-  "Live in under 60 seconds",
-];
+const PERKS = ["perk1", "perk2", "perk3"] as const;
 
-export function SignupForm() {
+export function SignupForm({ locale }: { locale: string }) {
+  const t = useTranslations("auth.signup");
   const router = useRouter();
 
   const [name, setName] = React.useState("");
@@ -25,6 +24,9 @@ export function SignupForm() {
   const [password, setPassword] = React.useState("");
   const [pending, setPending] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+
+  // Post-signup redirect keeps the active language.
+  const home = locale === defaultLocale ? "/dashboard" : `/${locale}/dashboard`;
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,7 +46,7 @@ export function SignupForm() {
       };
 
       if (!response.ok) {
-        setErrors(data.fields ?? { form: data.error ?? "Could not create account" });
+        setErrors(data.fields ?? { form: data.error ?? t("error") });
         return;
       }
 
@@ -55,17 +57,19 @@ export function SignupForm() {
       });
 
       if (result?.error) {
-        setErrors({ form: "Account created — but sign-in failed. Try logging in." });
+        setErrors({
+          form: t("signInFailed"),
+        });
         return;
       }
 
-      toast.success("Account created", {
-        description: "Add your first site to start tracking.",
-      });
-      router.push("/dashboard");
+      toast.success(t("created"), { description: t("createdDescription") });
+      router.push(home);
       router.refresh();
     } catch {
-      setErrors({ form: "Network error. Please try again." });
+      setErrors({
+        form: t("networkError"),
+      });
     } finally {
       setPending(false);
     }
@@ -75,30 +79,29 @@ export function SignupForm() {
     <div className="w-full max-w-md">
       <div className="glass-strong sheen rounded-3xl p-7 sm:p-8">
         <div className="text-center">
-          <h1 className="font-display text-2xl font-bold tracking-tight">
-            Start tracking free
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            No credit card. No cookie banner. Cancel whenever.
-          </p>
+          <h1 className="font-display text-2xl font-bold tracking-tight">{t("title")}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
 
         <ul className="mt-6 space-y-2">
           {PERKS.map((perk) => (
-            <li key={perk} className="flex items-center gap-2.5 text-sm text-muted-foreground">
+            <li
+              key={perk}
+              className="flex items-center gap-2.5 text-sm text-muted-foreground"
+            >
               <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-success/15">
                 <svg viewBox="0 0 12 12" className="size-2.5 fill-success" aria-hidden>
                   <path d="M10 3.5 5.2 8.8 2 5.6l.9-.9 2.3 2.3L9.1 2.6z" />
                 </svg>
               </span>
-              {perk}
+              {t(perk)}
             </li>
           ))}
         </ul>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="name">{t("name")}</Label>
             <div className="relative">
               <User className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -117,7 +120,7 @@ export function SignupForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("email")}</Label>
             <div className="relative">
               <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -136,7 +139,7 @@ export function SignupForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("password")}</Label>
             <div className="relative">
               <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -145,7 +148,7 @@ export function SignupForm() {
                 autoComplete="new-password"
                 required
                 minLength={8}
-                placeholder="At least 8 characters"
+                placeholder={t("passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 aria-invalid={Boolean(errors.password)}
@@ -170,11 +173,11 @@ export function SignupForm() {
             {pending ? (
               <>
                 <Loader2 className="animate-spin" />
-                Creating account…
+                {t("submitting")}
               </>
             ) : (
               <>
-                Create account
+                {t("submit")}
                 <ArrowRight className="transition-transform group-hover:translate-x-1" />
               </>
             )}
@@ -183,12 +186,12 @@ export function SignupForm() {
       </div>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
+        {t("hasAccount")}{" "}
         <Link
           href="/login"
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
-          Sign in
+          {t("signIn")}
         </Link>
       </p>
     </div>

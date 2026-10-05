@@ -1,3 +1,5 @@
+import { getTranslations } from "next-intl/server";
+
 import { Container } from "@/components/marketing/section";
 
 const LOGOS = [
@@ -13,13 +15,15 @@ const LOGOS = [
   "Plausible",
 ];
 
-/** Infinite marquee of "trusted by" wordmarks. Duplicated once for seamless wrap. */
-export function LogoMarquee() {
+/** Infinite marquee of "trusted by" wordmarks. Duplicated once for a seamless wrap. */
+export async function LogoMarquee() {
+  const t = await getTranslations("marquee");
+
   return (
     <section className="relative border-y border-border/50 py-10">
       <Container size="wide">
         <p className="text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          Trusted by 4,200+ indie makers shipping in public
+          {t("label")}
         </p>
       </Container>
 

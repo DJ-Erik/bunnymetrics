@@ -91,6 +91,9 @@ if $PM build; then ok "production build succeeded"; else fail "build failed"; ex
 step "Prerender bailout guard"
 if node scripts/check-bailout.mjs; then ok "static pages fully server-rendered"; else fail "CSR bailout detected"; fi
 
+step "Message catalogues"
+if node scripts/check-messages.mjs; then ok "catalogues in sync"; else fail "message catalogues out of sync"; fi
+
 step "Seed demo data"
 if $PM db:seed; then ok "demo data loaded"; else fail "seed failed"; fi
 
@@ -135,6 +138,30 @@ fi
 
 step "API smoke tests"
 if BASE="$BASE" node scripts/smoke-test.mjs; then ok "smoke tests passed"; else fail "smoke tests failed"; fi
+
+# --- i18n --------------------------------------------------------------------
+# Asserts each locale actually serves its own translated copy, and that the two
+# coexist: English must not leak into the Italian page and vice versa.
+step "i18n: English page"
+if BASE="$BASE" node scripts/check-locale-content.mjs en; then
+  ok "/ serves English"
+else
+  fail "/ is missing English content"
+fi
+
+step "i18n: Italian page"
+if BASE="$BASE" node scripts/check-locale-content.mjs it; then
+  ok "/it serves Italian"
+else
+  fail "/it is missing Italian content"
+fi
+
+step "i18n: routing and cookie negotiation"
+if BASE="$BASE" node scripts/check-i18n-routing.mjs; then
+  ok "locale routing, cookie persistence and Accept-Language negotiation"
+else
+  fail "locale routing is incorrect"
+fi
 
 step "Dashboard render tests"
 if BASE="$BASE" node scripts/dashboard-test.mjs; then ok "dashboard tests passed"; else fail "dashboard tests failed"; fi

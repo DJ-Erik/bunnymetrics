@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,15 +32,20 @@ export function TopPagesTable({
   loading?: boolean;
   domain: string;
 }) {
+  const t = useTranslations("dashboard.pages");
+  // Column headings live in a different namespace and must be resolved at the
+  // top level: the table only renders inside a conditional branch, so calling a
+  // hook down there would violate the rules of hooks.
+  const ts = useTranslations("dashboard.stats");
   const maxViews = Math.max(1, ...data.map((page) => page.views));
 
   return (
     <Card glass className="overflow-hidden">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle>Top pages</CardTitle>
+          <CardTitle>{t("title")}</CardTitle>
           <span className="text-xs text-muted-foreground">
-            {formatNumber(data.length)} shown
+            {t("shown", { count: formatNumber(data.length) })}
           </span>
         </div>
       </CardHeader>
@@ -53,18 +58,20 @@ export function TopPagesTable({
             ))}
           </div>
         ) : data.length === 0 ? (
-          <p className="px-6 pb-6 text-sm text-muted-foreground">
-            No pageviews recorded in this period yet.
-          </p>
+          <p className="px-6 pb-6 text-sm text-muted-foreground">{t("empty")}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[46%]">Page</TableHead>
-                <TableHead className="text-right">Views</TableHead>
-                <TableHead className="hidden text-right sm:table-cell">Visitors</TableHead>
-                <TableHead className="hidden text-right md:table-cell">Avg. time</TableHead>
-                <TableHead className="w-[16%] text-right">Share</TableHead>
+                <TableHead className="w-[46%]">{t("page")}</TableHead>
+                <TableHead className="text-right">{ts("pageviews")}</TableHead>
+                <TableHead className="hidden text-right sm:table-cell">
+                  {ts("visitors")}
+                </TableHead>
+                <TableHead className="hidden text-right md:table-cell">
+                  {ts("duration")}
+                </TableHead>
+                <TableHead className="w-[16%] text-right">{t("share")}</TableHead>
               </TableRow>
             </TableHeader>
 
@@ -134,10 +141,12 @@ export function ReferrersCard({
   data: Array<{ source: string; visits: number; share: number }>;
   loading?: boolean;
 }) {
+  const t = useTranslations("dashboard.referrers");
+
   return (
     <Card glass className="h-full">
       <CardHeader className="pb-3">
-        <CardTitle>Where visitors come from</CardTitle>
+        <CardTitle>{t("title")}</CardTitle>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -147,9 +156,7 @@ export function ReferrersCard({
             ))}
           </div>
         ) : data.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No referrer data in this period.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("empty")}</p>
         ) : (
           <ul className="space-y-2.5">
             {data.map((ref) => (
@@ -181,13 +188,14 @@ export function BreakdownCard({
   title,
   items,
   loading,
-  emptyLabel = "No data",
+  emptyLabel,
 }: {
   title: string;
   items: BreakdownItem[];
   loading?: boolean;
   emptyLabel?: string;
 }) {
+  const t = useTranslations("dashboard.breakdown");
   const total = items.reduce((sum, item) => sum + item.value, 0);
   const max = Math.max(1, ...items.map((item) => item.value));
 
@@ -204,7 +212,9 @@ export function BreakdownCard({
             ))}
           </div>
         ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+          <p className="text-sm text-muted-foreground">
+            {emptyLabel ?? t("empty")}
+          </p>
         ) : (
           <ul className="space-y-2.5">
             {items.map((item) => (
@@ -232,5 +242,3 @@ export function BreakdownCard({
     </Card>
   );
 }
-
-export { Link };

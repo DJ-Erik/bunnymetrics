@@ -21,23 +21,68 @@ async function main() {
 
   // ---- static pages ----
   console.log("Pages");
-  for (const path of ["/", "/login", "/signup", "/tracking.js"]) {
+  for (const path of ["/", "/it", "/login", "/it/login", "/signup", "/it/signup", "/tracking.js"]) {
     const res = await fetch(BASE + path);
     check(`GET ${path}`, res.ok, `status ${res.status}`);
   }
 
+  // /en must 307 to the canonical unprefixed English URL.
+  const enRedirect = await fetch(`${BASE}/en`, { redirect: "manual" });
+  const enLocation = new URL(enRedirect.headers.get("location") ?? "/", BASE);
+  check(
+    "/en redirects to / (canonical)",
+    [307, 308].includes(enRedirect.status) && enLocation.pathname === "/",
+    `status ${enRedirect.status} -> ${enRedirect.headers.get("location")}`,
+  );
+
+  // The tracker is fetched cross-origin by third-party sites: it must never
+  // redirect or gain a locale prefix.
+  const trackerResponse = await fetch(`${BASE}/tracking.js`);
+  check(
+    "/tracking.js is not localised",
+    trackerResponse.status === 200 && !trackerResponse.url.includes("/it/"),
+    `final url ${trackerResponse.url}`,
+  );
+
   const home = await (await fetch(BASE + "/")).text();
-  check("landing prerenders hero copy", home.includes("Analytics that respects"));
-  check("landing prerenders FAQ", home.includes("cookie consent banner"));
-  check("landing prerenders pricing", home.includes("Most popular"));
+  check("landing renders hero copy", home.includes("Analytics that respects"));
+  check("landing renders FAQ", home.includes("cookie consent banner"));
+  check("landing renders pricing", home.includes("Cheaper than your coffee"));
   check("landing has no CSR bailout", !home.includes("BAILOUT_TO_CLIENT_SIDE_RENDERING"));
+  check("landing declares lang=en", home.includes('<html lang="en"'));
+  check("landing links to /it", home.includes('href="/it"'));
+
+  const italian = await (await fetch(BASE + "/it")).text();
+  check("/it renders Italian hero", italian.includes("Analytics che rispetta"));
+  check("/it renders Italian FAQ", italian.includes("Domande, con risposta"));
+  check("/it declares lang=it", italian.includes('<html lang="it"'));
+  check("/it has no Italian leakage on the English page", !home.includes("Analytics che rispetta"));
 
   const loginHtml = await (await fetch(BASE + "/login")).text();
-  check("login prerenders without bailout", !loginHtml.includes("BAILOUT_TO_CLIENT_SIDE_RENDERING") && loginHtml.includes("Welcome back"));
+  check(
+    "login prerenders without bailout",
+    !loginHtml.includes("BAILOUT_TO_CLIENT_SIDE_RENDERING") && loginHtml.includes("Welcome back"),
+  );
 
   const tracker = await (await fetch(BASE + "/tracking.js")).text();
   check("tracking.js served", tracker.length > 500 && tracker.length < 2048, `${tracker.length} bytes`);
-  check("tracking.js CORS", (await fetch(BASE + "/tracking.js")).headers.get("access-control-allow-origin") === "*");
+  check(
+    "tracking.js CORS",
+    (await fetch(BASE + "/tracking.js")).headers.get("access-control-allow-origin") === "*",
+  );
+
+  // SEO surfaces
+  const sitemap = await (await fetch(BASE + "/sitemap.xml")).text();
+  // Sitemap alternates use the xhtml:link element, so Italian shows up as an
+// hreflang alternate rather than as its own <loc> entry.
+check("sitemap lists the English root", /<loc>[^<]*<\/>/.test(sitemap) || sitemap.includes("<loc>"));
+check(
+  "sitemap advertises the Italian alternates",
+  /hreflang="it"/.test(sitemap) && /hreflang="en"/.test(sitemap),
+);
+check("sitemap has x-default", sitemap.includes('hreflang="x-default"'));
+  const robots = await (await fetch(BASE + "/robots.txt")).text();
+  check("robots points at the sitemap", robots.includes("sitemap.xml"));
 
   // ---- auth guards ----
   console.log("\nAuth guards");

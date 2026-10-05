@@ -1,0 +1,508 @@
+{
+  "meta": {
+    "home": {
+      "title": "BunnyMetrics — Privacy-first analytics for indie makers",
+      "description": "A 1.4kb cookie-less analytics script. No consent banner, no PII, no bloat. Understand your traffic in 60 seconds."
+    },
+    "login": {
+      "title": "Sign in",
+      "description": "Sign in to your BunnyMetrics dashboard."
+    },
+    "signup": {
+      "title": "Create your account",
+      "description": "Start free with 10,000 events a month. No credit card, no cookie banner."
+    },
+    "dashboard": "Dashboard",
+    "notFound": {
+      "title": "Page not found",
+      "description": "That page does not exist, or it moved."
+    }
+  },
+  "language": {
+    "label": "Language",
+    "switchTo": "Language"
+  },
+  "nav": {
+    "features": "Features",
+    "howItWorks": "How it works",
+    "pricing": "Pricing",
+    "faq": "FAQ",
+    "signIn": "Sign in",
+    "startFree": "Start free",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "github": "Star on GitHub",
+    "home": "BunnyMetrics home",
+    "language": "Language",
+    "signedOut": "Signed out"
+  },
+  "hero": {
+    "badge": "New",
+    "badgeText": "Scroll-depth + engagement analytics are live",
+    "titleLead": "Analytics that respects",
+    "titleAccent": "your visitors",
+    "titleTail1": "and your",
+    "titleTail2": "bundle budget",
+    "description": "A {size} cookie-less script that tells you who visits, what they read, and where they bounce. No consent banner. No PII. No Lighthouse penalty.",
+    "primaryCta": "Start tracking free",
+    "secondaryCta": "View live demo",
+    "perk1": "No credit card",
+    "perk2": "10k events/month free",
+    "perk3": "Self-host in one command",
+    "scriptSize": "1.4kb",
+    "previewVisitors": "Visitors",
+    "previewActiveNow": "Active right now",
+    "previewTopPages": "Top pages",
+    "previewScriptSize": "Script size",
+    "previewCookiesSet": "Cookies set"
+  },
+  "marquee": {
+    "label": "Trusted by 4,200+ indie makers shipping in public"
+  },
+  "features": {
+    "eyebrow": "Why BunnyMetrics",
+    "title": "Everything you actually look at, nothing you have to sit through",
+    "description": "Analytics tools got heavy because they solve enterprise problems. We solved the indie-maker problem instead — and threw away the rest.",
+    "items": {
+      "size": {
+        "title": "1.4kb, uncompressed",
+        "body": "One file, one HTTP/2 push, zero dependencies. Your Lighthouse score never notices we’re here."
+      },
+      "privacy": {
+        "title": "Zero cookies. Zero PII.",
+        "body": "No fingerprinting, no cross-site IDs, no consent banner. GDPR + CCPA out of the box."
+      },
+      "realtime": {
+        "title": "Realtime visitors",
+        "body": "Live page-by-page activity from the last 5 minutes, polling every 10 seconds."
+      },
+      "events": {
+        "title": "Custom events",
+        "body": "Any element with data-bm=\"signup\" becomes a tracked event. One attribute, zero config."
+      },
+      "engagement": {
+        "title": "Engagement & scroll",
+        "body": "Time on page and max scroll depth, reported on unload — the two metrics that predict conversion."
+      },
+      "charts": {
+        "title": "Every chart you need",
+        "body": "Visitors, pageviews, referrers, geography, devices, browsers, OS, bounce and duration — over any range."
+      }
+    },
+    "comparison": {
+      "eyebrow": "The switch",
+      "title": "Most analytics are a liability in disguise",
+      "description": "Google Analytics loads 45kb, writes 20 cookies, and legally obliges you to ask European visitors for permission before you even do that. BunnyMetrics does none of it.",
+      "benefits": {
+        "dpa": "No data processing agreement to negotiate",
+        "policy": "No cookie policy to maintain",
+        "banner": "No banner hurting your conversion rate",
+        "anywhere": "Deploy anywhere — static site, edge, or Next.js"
+      },
+      "metric": "Metric",
+      "bunny": "BunnyMetrics",
+      "typical": "Typical",
+      "rows": {
+        "script": {
+          "label": "Tracking script",
+          "bunny": "1.4kb",
+          "typical": "8–45kb"
+        },
+        "cookies": {
+          "label": "Cookies set",
+          "bunny": "0",
+          "typical": "3–20"
+        },
+        "banner": {
+          "label": "Consent banner",
+          "bunny": "Not needed",
+          "typical": "Required (EU)"
+        },
+        "ip": {
+          "label": "Stores IP addresses",
+          "bunny": "No",
+          "typical": "Yes"
+        },
+        "gdpr": {
+          "label": "Personal data subject to GDPR",
+          "bunny": "No",
+          "typical": "Yes"
+        },
+        "price": {
+          "label": "Monthly price (10k events)",
+          "bunny": "$0",
+          "typical": "$0–19"
+        }
+      }
+    },
+    "howItWorks": {
+      "eyebrow": "How it works",
+      "title": "Live before your coffee gets cold",
+      "description": "No SDK install, no build step, no tag manager. Three steps, about ninety seconds.",
+      "steps": {
+        "one": {
+          "title": "Add your site",
+          "body": "Paste your domain. We generate a unique tracking key for that property."
+        },
+        "two": {
+          "title": "Paste one snippet",
+          "body": "Drop it above </head> on any framework — Next.js, Astro, Rails, plain HTML."
+        },
+        "three": {
+          "title": "Watch it land",
+          "body": "Traffic shows up in realtime. Referrers, pages and devices start populating immediately."
+        }
+      }
+    }
+  },
+  "testimonials": {
+    "eyebrow": "Loved by makers",
+    "title": "Don’t take our word for it",
+    "description": "Over 4,200 indie founders, side-projecters and tiny SaaS teams use BunnyMetrics every month.",
+    "items": {
+      "priya": {
+        "quote": "I moved three of my side projects off GA in an evening. Page speed got measurably better and I stopped dreading the cookie banner on my own site.",
+        "name": "Priya Raghunathan",
+        "role": "Indie hacker, ShipFastKit"
+      },
+      "marco": {
+        "quote": "The referrer breakdown is the first analytics view I’ve actually read all week. Found a community that was sending 40% of signups — never would have seen that in GA.",
+        "name": "Marco Oliveira",
+        "role": "Founder, Loopstack"
+      },
+      "elena": {
+        "quote": "We needed GDPR-safe analytics for a healthcare client. Self-hosting took an afternoon and passed their compliance review without a single finding.",
+        "name": "Elena Vasquez",
+        "role": "CTO, Meridian Health"
+      }
+    }
+  },
+  "pricing": {
+    "eyebrow": "Pricing",
+    "title": "Cheaper than your coffee, honestly",
+    "description": "Start free forever. Upgrade when your traffic does. Cancel from the dashboard in two clicks — no retention call.",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "save": "Save 20%",
+    "billedYearly": "billed yearly",
+    "mostPopular": "Most popular",
+    "perMonth": "/month",
+    "plans": {
+      "hobby": {
+        "name": "Hobby",
+        "tagline": "For the weekend project that suddenly has users.",
+        "events": "10,000 events / month",
+        "cta": "Start free",
+        "features": {
+          "sites": "1 site",
+          "history": "30 days of history",
+          "charts": "Core charts + top pages",
+          "referrers": "Referrers & geography",
+          "realtime": "Realtime visitors",
+          "support": "Community support"
+        }
+      },
+      "pro": {
+        "name": "Pro",
+        "tagline": "For products with a real funnel and real traffic.",
+        "events": "100,000 events / month",
+        "cta": "Start 14-day trial",
+        "features": {
+          "sites": "Unlimited sites",
+          "history": "Unlimited history",
+          "events": "Custom events + funnels",
+          "engagement": "Scroll depth & engagement",
+          "api": "API access + data export",
+          "support": "Email support, 24h response"
+        }
+      },
+      "scale": {
+        "name": "Scale",
+        "tagline": "For teams that need the raw numbers, self-hosted.",
+        "events": "1,000,000 events / month",
+        "cta": "Talk to us",
+        "features": {
+          "pro": "Everything in Pro",
+          "docker": "Self-host with Docker",
+          "databases": "Postgres + ClickHouse",
+          "sso": "SSO / SAML",
+          "sla": "99.9% uptime SLA",
+          "support": "Dedicated Slack channel"
+        }
+      }
+    },
+    "footnoteLead": "Need more than 1M events?",
+    "footnoteLink": "Talk to us about volume pricing",
+    "footnoteTail": "Nonprofits get Pro free — just ask."
+  },
+  "faq": {
+    "eyebrow": "FAQ",
+    "title": "Questions, answered",
+    "description": "Still stuck? Email hello@bunnymetrics.dev and a human replies within a day.",
+    "items": {
+      "consent": {
+        "q": "Do I need a cookie consent banner?",
+        "a": "No. BunnyMetrics stores no cookies, sets no identifiers in your visitors' browsers, and collects no personal data — no IP addresses, no fingerprints, no names, no emails. A rotating first-party ID lives only in localStorage to de-duplicate pageviews within a single browser, and it is never linked to a person. There is nothing to disclose under GDPR or CCPA."
+      },
+      "google": {
+        "q": "How is this different from Google Analytics?",
+        "a": "GA is a free ad platform that profiles your visitors. It ships 45kb of JavaScript, writes around twenty cookies, requires a consent banner in the EU, and gives you a dashboard optimised for marketing attribution you will never use. BunnyMetrics answers the three questions indie makers actually ask — how many people came, what did they read, where did they leave — in 1.4kb with no personal data."
+      },
+      "event": {
+        "q": "What counts as an event?",
+        "a": "A pageview is one event. Custom events fired via data-bm attributes, and engagement pings for scroll depth and time-on-page, count as one event each. A typical visitor session produces 2–4 events, so 10,000 events per month is roughly 3,000 sessions — comfortable for any early-stage site."
+      },
+      "selfHost": {
+        "q": "Can I self-host it?",
+        "a": "Yes, on the Scale plan. It is a standard Next.js app: point it at Postgres or ClickHouse, set four environment variables, and run it under Docker or your favourite PaaS. The schema is plain Prisma, so migrations work exactly as they do here."
+      },
+      "data": {
+        "q": "Is my data sold or used for anything else?",
+        "a": "Never. There is no third-party sharing, no ad network, no enrichment step, and no model training on your traffic. We store aggregate counters and a hashed visitor ID. Delete your site and its events are gone within seconds."
+      },
+      "limit": {
+        "q": "What happens when I exceed my event limit?",
+        "a": "Nothing breaks. We keep collecting and you keep seeing your data — we simply stop counting new events against your plan until the next billing cycle, and we email you at 80% and 100% so it is never a surprise."
+      },
+      "frameworks": {
+        "q": "Does it work with React, Next.js, Astro, Rails or WordPress?",
+        "a": "Yes. The script is a single deferred <script> tag with a data-site attribute. It does not care what renders the page, and it works fine alongside React hydration, Astro islands, server-rendered templates, and page builders."
+      },
+      "export": {
+        "q": "Can I export my data?",
+        "a": "On Pro and above, one click exports every event as CSV, and the /api/stats endpoint returns the full aggregated payload as JSON whenever you want to pipe it into your own warehouse or dashboards."
+      }
+    }
+  },
+  "finalCta": {
+    "badge": "Free forever tier",
+    "titleLead": "Stop guessing.",
+    "titleAccent": "Start knowing.",
+    "description": "Ten thousand events a month, forever, with no card. If it earns its keep, upgrade. If it doesn’t, you still got the data.",
+    "primaryCta": "Create your free account",
+    "secondaryCta": "Explore the dashboard",
+    "perk1": "No credit card",
+    "perk2": "No tracking of you",
+    "perk3": "Live in 60 seconds"
+  },
+  "footer": {
+    "description": "Privacy-first web analytics for people who’d rather ship than configure. Built with Next.js, Prisma and a stubborn 1.4kb budget.",
+    "columns": {
+      "product": {
+        "title": "Product",
+        "features": "Features",
+        "pricing": "Pricing",
+        "howItWorks": "How it works",
+        "changelog": "Changelog"
+      },
+      "developers": {
+        "title": "Developers",
+        "docs": "Documentation",
+        "api": "Tracking API",
+        "selfHosting": "Self-hosting",
+        "status": "Status"
+      },
+      "company": {
+        "title": "Company",
+        "about": "About",
+        "blog": "Blog",
+        "privacy": "Privacy",
+        "terms": "Terms"
+      }
+    },
+    "github": "GitHub",
+    "email": "Email us",
+    "copyright": "© {year} BunnyMetrics. Open source, MIT licensed.",
+    "madeWith": "Made with",
+    "madeWithTail": "by a small team that hates dark patterns",
+    "language": "Language"
+  },
+  "auth": {
+    "login": {
+      "title": "Welcome back",
+      "subtitle": "Sign in to see what your visitors are doing.",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "error": "That email and password do not match an account.",
+      "demoTitle": "Want to look around first?",
+      "demoBody": "Use the seeded demo account with 30 days of realistic traffic.",
+      "demoButton": "Use demo credentials",
+      "noAccount": "Don’t have an account?",
+      "startFree": "Start free",
+      "success": "Welcome back"
+    },
+    "signup": {
+      "title": "Start tracking free",
+      "subtitle": "No credit card. No cookie banner. Cancel whenever.",
+      "perk1": "10,000 events every month, free",
+      "perk2": "No credit card, no consent banner",
+      "perk3": "Live in under 60 seconds",
+      "name": "Name",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Create account",
+      "submitting": "Creating account…",
+      "error": "Could not create the account. Please try again.",
+      "created": "Account created",
+      "createdDescription": "Add your first site to start tracking.",
+      "hasAccount": "Already have an account?",
+      "signIn": "Sign in",
+      "passwordPlaceholder": "At least 8 characters",
+      "signInFailed": "Account created, but sign-in failed. Try logging in.",
+      "networkError": "Network error. Please try again."
+    },
+    "footer": "© {year} BunnyMetrics · MIT licensed"
+  },
+  "dashboard": {
+    "nav": {
+      "overview": "Overview",
+      "install": "Install & API",
+      "billing": "Billing",
+      "addSite": "Add site"
+    },
+    "header": {
+      "overview": "Overview",
+      "sessions": "{count} sessions · {perVisitor} pages per visitor · {events} events",
+      "rangeError": "Could not load that range, reverting"
+    },
+    "stats": {
+      "visitors": "Unique visitors",
+      "pageviews": "Pageviews",
+      "bounce": "Bounce rate",
+      "duration": "Avg. time on page",
+      "bounceHint": "single-page sessions",
+      "durationHint": "across all pages",
+      "vsPrevious": "vs previous period",
+      "events": "Events",
+      "sessions": "Sessions"
+    },
+    "chart": {
+      "title": "Traffic over time",
+      "hourly": "Hourly, last 24 hours",
+      "daily": "Daily, last {days} days",
+      "utc": "UTC",
+      "empty": "No traffic in this period",
+      "emptyHint": "Install the tracking snippet on your site and data will appear here within seconds.",
+      "visitors": "Visitors",
+      "pageviews": "Pageviews",
+      "events": "Events"
+    },
+    "realtime": {
+      "title": "Active right now",
+      "inWindow": "{count, plural, one {# visitor} other {# visitors}} in the last {minutes} minutes",
+      "empty": "No active visitors right now. Pages they’re viewing will appear here live.",
+      "updated": "Updated {time}",
+      "refreshes": "refreshes every {seconds}s",
+      "refresh": "Refresh realtime"
+    },
+    "pages": {
+      "title": "Top pages",
+      "shown": "{count} shown",
+      "empty": "No pageviews recorded in this period yet.",
+      "page": "Page",
+      "share": "Share",
+      "visitors": "Visitors",
+      "avgDuration": "Avg. duration"
+    },
+    "referrers": {
+      "title": "Where visitors come from",
+      "empty": "No referrer data in this period."
+    },
+    "breakdown": {
+      "devices": "Devices",
+      "browsers": "Browsers",
+      "os": "Operating systems",
+      "countries": "Countries",
+      "empty": "No data"
+    },
+    "usage": {
+      "title": "Plan usage",
+      "counted": "Events counted in the last {days}.",
+      "install": "Install & manage"
+    },
+    "footer": "Last computed {time} · all times UTC · visitor IDs rotate every 30 days",
+    "export": "Export CSV",
+    "addSite": {
+      "cancel": "Cancel",
+      "confirm": "Cancel",
+      "title": "Add a new site",
+      "subtitle": "We’ll generate a unique tracking key for this property.",
+      "domain": "Domain",
+      "domainPlaceholder": "acme.com",
+      "domainHint": "No protocol needed. Try {examples}",
+      "name": "Display name",
+      "namePlaceholder": "Acme Marketing Site",
+      "environment": "Environment",
+      "production": "Production",
+      "staging": "Staging",
+      "development": "Development",
+      "submit": "Create site",
+      "created": "Site created",
+      "createdDescription": "Paste the snippet into your site to start collecting.",
+      "error": "Could not create site"
+    },
+    "empty": {
+      "title": "Let’s track your first site",
+      "subtitle": "Add a domain, paste one tag, and you’ll know exactly who visits, what they read, and where they leave.",
+      "cta": "Add your first site",
+      "plan": "Free {plan} plan",
+      "noCard": "No credit card",
+      "size": "1.4kb",
+      "promise1": {
+        "title": "Live in 60 seconds",
+        "body": "Paste the snippet, refresh, watch traffic arrive."
+      },
+      "promise2": {
+        "title": "No consent banner",
+        "body": "Zero cookies and no personal data collected."
+      },
+      "promise3": {
+        "title": "GDPR by default",
+        "body": "Nothing here needs a data processing agreement."
+      },
+      "backHome": "Back to home"
+    },
+    "signOut": "Sign out",
+    "plan": "{plan} plan",
+    "managePlan": "Manage plan"
+  },
+  "install": {
+    "title": "Install on {domain}",
+    "subtitle": "One tag, 1.4kb, loaded async. It never blocks rendering.",
+    "live": "Live",
+    "head": "<head> · works on any framework",
+    "next": "Next.js",
+    "html": "HTML",
+    "astro": "Astro",
+    "rails": "Rails",
+    "api": "API",
+    "customEvent": {
+      "title": "Track a custom event",
+      "description": "Add data-bm to any element and it shows up in your events automatically.",
+      "example": "<button data-bm=\"signup\">"
+    },
+    "delete": {
+      "trigger": "Delete site",
+      "lead": "Need to remove this property and all of its data?",
+      "title": "Delete {domain}?",
+      "description": "This permanently removes the site and every event it has recorded. It cannot be undone.",
+      "cancel": "Keep it",
+      "confirm": "Delete permanently",
+      "deleted": "Site deleted",
+      "deletedDescription": "All of its events were removed too.",
+      "error": "Could not delete site"
+    }
+  },
+  "errors": {
+    "unauthorized": "Unauthorized",
+    "notFound": "Site not found",
+    "generic": "Something went wrong. Please try again."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "That page does not exist, or it moved.",
+    "backHome": "Back to home"
+  }
+}

@@ -1,17 +1,10 @@
 "use client";
 
 import { Activity, Eye, MousePointerClick, Users } from "lucide-react";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import {
   ChartContainer,
@@ -22,13 +15,16 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatNumber } from "@/lib/utils";
 
-const CONFIG = {
-  visitors: { label: "Visitors", color: "hsl(var(--primary))" },
-  pageviews: { label: "Pageviews", color: "hsl(var(--accent))" },
-  events: { label: "Events", color: "hsl(var(--cyan))" },
-} satisfies ChartConfig;
+type MetricKey = "visitors" | "pageviews" | "events";
+
+// Colours are static and never translated; labels are filled in from messages
+// inside the component (see `config` below).
+const CONFIG_COLORS = {
+  visitors: "hsl(var(--primary))",
+  pageviews: "hsl(var(--accent))",
+  events: "hsl(var(--cyan))",
+} as const satisfies Record<MetricKey, string>;
 
 export type SeriesPoint = {
   key: string;
@@ -48,30 +44,42 @@ export function TrafficChart({
   loading?: boolean;
   range: string;
 }) {
-  const [metric, setMetric] = React.useState<"visitors" | "pageviews" | "events">("visitors");
+  const t = useTranslations("dashboard.chart");
+  const ts = useTranslations("dashboard.stats");
+  const [metric, setMetric] = React.useState<MetricKey>("visitors");
+
+  // Colours are static, but the legend/tooltip labels are user-facing, so the
+  // config is built from translations inside the component.
+  const config = {
+    visitors: { label: ts("visitors"), color: CONFIG_COLORS.visitors },
+    pageviews: { label: ts("pageviews"), color: CONFIG_COLORS.pageviews },
+    events: { label: ts("events"), color: CONFIG_COLORS.events },
+  } satisfies ChartConfig;
 
   return (
     <Card glass className="overflow-hidden">
       <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
         <div>
-          <CardTitle>Traffic over time</CardTitle>
+          <CardTitle>{t("title")}</CardTitle>
           <p className="mt-1 text-xs text-muted-foreground">
-            {range === "24h" ? "Hourly, last 24 hours" : `Daily, last ${range.replace("d", " days")}`} · UTC
+            {range === "24h"
+              ? `${t("hourly")} · ${t("utc")}`
+              : `${t("daily", { days: range.replace("d", "") })} · ${t("utc")}`}
           </p>
         </div>
         <Tabs value={metric} onValueChange={(v) => setMetric(v as typeof metric)}>
           <TabsList>
             <TabsTrigger value="visitors">
               <Users />
-              Visitors
+              {ts("visitors")}
             </TabsTrigger>
             <TabsTrigger value="pageviews">
               <Eye />
-              Pageviews
+              {ts("pageviews")}
             </TabsTrigger>
             <TabsTrigger value="events">
               <Activity />
-              Events
+              {ts("events")}
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -83,7 +91,7 @@ export function TrafficChart({
         ) : data.every((point) => point.events === 0) ? (
           <EmptyChart />
         ) : (
-          <ChartContainer config={CONFIG} className="h-[16rem] w-full">
+          <ChartContainer config={config} className="h-[16rem] w-full">
             <AreaChart data={data} margin={{ left: 4, right: 8, top: 8 }}>
               <defs>
                 <linearGradient id="fillVisitors" x1="0" y1="0" x2="0" y2="1">
@@ -160,36 +168,14 @@ export function TrafficChart({
   );
 }
 
-export function RealtimeChart({ data }: { data: SeriesPoint[] }) {
-  return (
-    <ChartContainer config={CONFIG} className="h-[9rem] w-full">
-      <LineChart data={data} margin={{ left: 0, right: 0, top: 4 }}>
-        <XAxis dataKey="label" hide />
-        <YAxis hide />
-        <Line
-          dataKey="visitors"
-          type="monotone"
-          stroke="var(--color-visitors)"
-          strokeWidth={2}
-          dot={false}
-          isAnimationActive={false}
-        />
-      </LineChart>
-    </ChartContainer>
-  );
-}
-
 function EmptyChart() {
+  const t = useTranslations("dashboard.chart");
+
   return (
     <div className="flex h-[16rem] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/70 bg-background/30 text-center">
       <MousePointerClick className="size-6 text-muted-foreground/50" />
-      <p className="text-sm font-medium">No traffic in this period</p>
-      <p className="max-w-xs text-xs text-muted-foreground">
-        Install the tracking snippet on your site and data will appear here
-        within seconds.
-      </p>
+      <p className="text-sm font-medium">{t("empty")}</p>
+      <p className="max-w-xs text-xs text-muted-foreground">{t("emptyHint")}</p>
     </div>
   );
 }
-
-export { formatNumber };

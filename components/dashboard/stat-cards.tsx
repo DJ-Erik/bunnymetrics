@@ -1,9 +1,12 @@
+"use client";
+
 import type { LucideIcon } from "lucide-react";
 import { Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn, formatCompact, formatDuration, formatNumber, formatPercent, percentChange } from "@/lib/utils";
+import { cn, formatDuration, formatNumber, formatPercent } from "@/lib/utils";
 
 type Kind = "number" | "percent" | "duration";
 
@@ -42,6 +45,8 @@ export function StatCards({
 }
 
 function StatCard({ stat, loading }: { stat: StatCardData; loading?: boolean }) {
+  const t = useTranslations("dashboard");
+
   if (loading) {
     return (
       <Card className="p-5">
@@ -52,7 +57,7 @@ function StatCard({ stat, loading }: { stat: StatCardData; loading?: boolean }) 
     );
   }
 
-  const delta = percentChange(stat.value, stat.value - stat.change);
+  const delta = stat.change;
   const flat = Math.abs(delta) < 0.05;
   const good = stat.invertChange ? delta < 0 : delta > 0;
   const Icon = stat.icon;
@@ -89,11 +94,9 @@ function StatCard({ stat, loading }: { stat: StatCardData; loading?: boolean }) 
           {formatPercent(Math.abs(delta))}
         </span>
         <span className="truncate text-muted-foreground">
-          {stat.hint ?? "vs previous period"}
+          {stat.hint ?? t("stats.vsPrevious")}
         </span>
       </div>
     </Card>
   );
 }
-
-export { formatCompact };

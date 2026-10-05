@@ -1,3 +1,5 @@
+import createNextIntlPlugin from "next-intl/plugin";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -48,4 +50,8 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// Wires next-intl into the build so `next-intl/server` resolves the request
+// config and the plugin can swap locale segments in Link/navigation.
+const withNextIntl = createNextIntlPlugin("./i18n.ts");
+
+export default withNextIntl(nextConfig);

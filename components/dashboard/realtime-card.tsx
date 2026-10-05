@@ -1,6 +1,7 @@
 "use client";
 
 import { Radio, RefreshCw } from "lucide-react";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +25,7 @@ export function RealtimeCard({
   sitePublicId: string;
   initial: RealtimePayload;
 }) {
+  const t = useTranslations("dashboard.realtime");
   const [data, setData] = React.useState<RealtimePayload>(initial);
   const [updatedAt, setUpdatedAt] = React.useState<Date>(new Date());
   const [loading, setLoading] = React.useState(false);
@@ -81,14 +83,14 @@ export function RealtimeCard({
               )}
             />
           </span>
-          Active right now
+          {t("title")}
         </CardTitle>
         <Button
           variant="ghost"
           size="icon-sm"
           onClick={() => void refresh(false)}
           disabled={loading}
-          aria-label="Refresh realtime"
+          aria-label={t("refresh")}
         >
           <RefreshCw className={cn(loading && "animate-spin")} />
         </Button>
@@ -104,16 +106,15 @@ export function RealtimeCard({
             </p>
             <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
               <Radio className="size-3" />
-              {pluralize(data.activeVisitors, "visitor", "visitors")} in the last{" "}
-              {data.windowMinutes} minutes
+              {t("inWindow", {
+                count: data.activeVisitors,
+                minutes: data.windowMinutes,
+              })}
             </p>
 
             <div className="mt-5 space-y-2.5 border-t border-border/60 pt-4">
               {data.byPath.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No active visitors right now. Pages they&apos;re viewing will
-                  appear here live.
-                </p>
+                <p className="text-xs text-muted-foreground">{t("empty")}</p>
               ) : (
                 data.byPath.map((entry) => (
                   <div key={entry.path} className="space-y-1">
@@ -137,13 +138,14 @@ export function RealtimeCard({
             </div>
 
             <p className="mt-4 text-[10px] text-muted-foreground/70">
-              Updated{" "}
-              {updatedAt.toLocaleTimeString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
+              {t("updated", {
+                time: updatedAt.toLocaleTimeString(undefined, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                }),
               })}{" "}
-              · refreshes every {POLL_MS / 1000}s
+              · {t("refreshes", { seconds: POLL_MS / 1000 })}
             </p>
           </>
         )}
@@ -151,3 +153,5 @@ export function RealtimeCard({
     </Card>
   );
 }
+
+export { pluralize };

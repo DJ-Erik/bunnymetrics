@@ -1,40 +1,54 @@
+import { getTranslations } from "next-intl/server";
 import { Github, Heart, Mail } from "lucide-react";
-import Link from "next/link";
 
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { Logo } from "@/components/logo";
 import { Container } from "@/components/marketing/section";
+import { Link } from "@/i18n/navigation";
 
 const COLUMNS = [
   {
-    title: "Product",
+    namespace: "footer.columns.product",
+    titleKey: "title",
     links: [
-      { label: "Features", href: "/#features" },
-      { label: "Pricing", href: "/#pricing" },
-      { label: "How it works", href: "/#how-it-works" },
-      { label: "Changelog", href: "/dashboard" },
+      { label: "features", href: "/#features" },
+      { label: "pricing", href: "/#pricing" },
+      { label: "howItWorks", href: "/#how-it-works" },
+      { label: "changelog", href: "/dashboard" },
     ],
   },
   {
-    title: "Developers",
+    namespace: "footer.columns.developers",
+    titleKey: "title",
     links: [
-      { label: "Documentation", href: "/#faq" },
-      { label: "Tracking API", href: "/#faq" },
-      { label: "Self-hosting", href: "/#pricing" },
-      { label: "Status", href: "/#faq" },
+      { label: "docs", href: "/#faq" },
+      { label: "api", href: "/#faq" },
+      { label: "selfHosting", href: "/#pricing" },
+      { label: "status", href: "/#faq" },
     ],
   },
   {
-    title: "Company",
+    namespace: "footer.columns.company",
+    titleKey: "title",
     links: [
-      { label: "About", href: "/#faq" },
-      { label: "Blog", href: "/#features" },
-      { label: "Privacy", href: "/#faq" },
-      { label: "Terms", href: "/#faq" },
+      { label: "about", href: "/#faq" },
+      { label: "blog", href: "/#features" },
+      { label: "privacy", href: "/#faq" },
+      { label: "terms", href: "/#faq" },
     ],
   },
-];
+] as const;
 
-export function Footer() {
+export async function Footer({
+  locale,
+  currentPath,
+}: {
+  locale: string;
+  currentPath: string;
+}) {
+  const t = await getTranslations("footer");
+  const tl = await getTranslations("language");
+
   return (
     <footer className="relative border-t border-border/50">
       <Container size="wide">
@@ -44,22 +58,26 @@ export function Footer() {
               <Logo />
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
-              Privacy-first web analytics for people who&apos;d rather ship than
-              configure. Built with Next.js, Prisma and a stubborn 1.4kb budget.
+              {t("description")}
             </p>
             <div className="mt-5 flex items-center gap-2">
+              <LanguageSwitcher
+                locale={locale}
+                currentPath={currentPath}
+                label={tl("label")}
+              />
               <a
                 href="https://github.com"
                 target="_blank"
                 rel="noreferrer noopener"
-                aria-label="GitHub"
+                aria-label={t("github")}
                 className="glass flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
               >
                 <Github className="size-4" />
               </a>
               <a
                 href="mailto:hello@bunnymetrics.dev"
-                aria-label="Email us"
+                aria-label={t("email")}
                 className="glass flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
               >
                 <Mail className="size-4" />
@@ -68,37 +86,52 @@ export function Footer() {
           </div>
 
           {COLUMNS.map((column) => (
-            <div key={column.title}>
-              <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/70">
-                {column.title}
-              </h3>
-              <ul className="mt-4 space-y-2.5">
-                {column.links.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      href={link.href}
-                      className="text-sm text-muted-foreground transition-colors hover:text-primary"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <FooterColumn key={column.namespace} namespace={column.namespace} titleKey={column.titleKey} links={column.links} />
           ))}
         </div>
 
         <div className="flex flex-col items-center justify-between gap-4 border-t border-border/50 py-7 sm:flex-row">
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} BunnyMetrics. Open source, MIT licensed.
+            {t("copyright", { year: new Date().getFullYear() })}
           </p>
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            Made with{" "}
-            <Heart className="size-3.5 fill-primary text-primary" />
-            by a small team that hates dark patterns
+            {t("madeWith")} <Heart className="size-3.5 fill-primary text-primary" />
+            {t("madeWithTail")}
           </p>
         </div>
       </Container>
     </footer>
+  );
+}
+
+async function FooterColumn({
+  namespace,
+  titleKey,
+  links,
+}: {
+  namespace: string;
+  titleKey: string;
+  links: ReadonlyArray<{ label: string; href: string }>;
+}) {
+  const t = await getTranslations(namespace);
+
+  return (
+    <div>
+      <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/70">
+        {t(titleKey)}
+      </h3>
+      <ul className="mt-4 space-y-2.5">
+        {links.map((link) => (
+          <li key={link.label}>
+            <Link
+              href={link.href}
+              className="text-sm text-muted-foreground transition-colors hover:text-primary"
+            >
+              {t(link.label)}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

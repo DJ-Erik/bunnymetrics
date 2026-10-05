@@ -2,32 +2,20 @@
 
 import { ArrowRight, Code2, Cookie, Plus, ShieldCheck, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 
 import { AddSiteDialog } from "@/components/dashboard/add-site-dialog";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { defaultLocale } from "@/lib/locales";
 
-const PROMISES = [
-  {
-    icon: Zap,
-    title: "Live in 60 seconds",
-    body: "Paste the snippet, refresh, watch traffic arrive.",
-  },
-  {
-    icon: Cookie,
-    title: "No consent banner",
-    body: "Zero cookies and no personal data collected.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "GDPR by default",
-    body: "Nothing here needs a data processing agreement.",
-  },
-];
+const PROMISES = ["promise1", "promise2", "promise3"] as const;
+const ICONS = [Zap, Cookie, ShieldCheck];
 
-export function EmptyState({ plan }: { plan: string }) {
+export function EmptyState({ locale, plan }: { locale: string; plan: string }) {
+  const t = useTranslations("dashboard.empty");
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
 
@@ -37,57 +25,55 @@ export function EmptyState({ plan }: { plan: string }) {
         <Logo className="mx-auto mb-8" showWordmark={false} />
 
         <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
-          Let&apos;s track your first site
+          {t("title")}
         </h1>
         <p className="mx-auto mt-3 max-w-md text-pretty text-muted-foreground">
-          Add a domain, paste one tag, and you&apos;ll know exactly who visits,
-          what they read, and where they leave.
+          {t("subtitle")}
         </p>
 
-        <Button
-          size="xl"
-          className="mt-8"
-          onClick={() => setOpen(true)}
-        >
+        <Button size="xl" className="mt-8" onClick={() => setOpen(true)}>
           <Plus />
-          Add your first site
+          {t("cta")}
         </Button>
 
         <div className="mt-6 flex items-center justify-center gap-4 text-xs text-muted-foreground">
-          <span>Free {plan} plan</span>
+          <span>{t("plan", { plan })}</span>
           <span className="size-1 rounded-full bg-border" />
-          <span>No credit card</span>
+          <span>{t("noCard")}</span>
           <span className="size-1 rounded-full bg-border" />
           <span className="flex items-center gap-1">
             <Code2 className="size-3" />
-            1.4kb
+            {t("size")}
           </span>
         </div>
       </div>
 
       <div className="mt-14 grid w-full max-w-3xl gap-4 sm:grid-cols-3">
-        {PROMISES.map((promise) => (
-          <Card key={promise.title} className="p-5 text-left">
-            <promise.icon className="size-5 text-primary" />
-            <p className="mt-3 text-sm font-semibold">{promise.title}</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              {promise.body}
-            </p>
-          </Card>
-        ))}
+        {PROMISES.map((key, index) => {
+          const Icon = ICONS[index];
+          return (
+            <Card key={key} className="p-5 text-left">
+              <Icon className="size-5 text-primary" />
+              <p className="mt-3 text-sm font-semibold">{t(`${key}.title`)}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {t(`${key}.body`)}
+              </p>
+            </Card>
+          );
+        })}
       </div>
 
       <Button
         variant="ghost"
         size="sm"
         className="mt-10"
-        onClick={() => router.push("/")}
+        onClick={() => router.push(locale === defaultLocale ? "/" : `/${locale}`)}
       >
-        Back to home
+        {t("backHome")}
         <ArrowRight />
       </Button>
 
-      <AddSiteDialog open={open} onOpenChange={setOpen} />
+      <AddSiteDialog locale={locale} open={open} onOpenChange={setOpen} />
     </div>
   );
 }

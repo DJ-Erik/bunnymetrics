@@ -1,5 +1,6 @@
 /**
- * Fails if any statically prerendered page falls back to client-side rendering.
+ * Fails if any statically prerendered page falls back to client-side rendering,
+ * or if a locale is missing from the output.
  *
  * When a statically rendered route renders a client component that calls
  * `useSearchParams` / `usePathname` (or fetches) without a Suspense boundary,
@@ -8,7 +9,7 @@
  * blank first paint and content that search engines may not see, while the
  * build still reports success — which is exactly how this shipped once.
  *
- * Runs against the artifacts in `.next/server/app`, so no server is needed.
+ * Reads the artifacts in `.next/server/app`, so no server is needed.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -19,12 +20,21 @@ const MARKER = "BAILOUT_TO_CLIENT_SIDE_RENDERING";
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = join(here, "..", ".next", "server", "app");
 
-/** Pages that must be fully prerendered, with a marker of real content so an
- *  empty or errored render cannot pass vacuously. */
+/**
+ * Prerendered pages, per locale, with a marker of real content so an empty or
+ * errored render cannot pass vacuously.
+ *
+ * Paths are the `generateStaticParams` forms (`/en/login`, not `/login`):
+ * the `as-needed` prefix rewrite happens in middleware at request time.
+ */
+/** Rendered URLs, per locale: English canonical unprefixed, Italian under /it. */
 const PAGES = [
-  { file: "index.html", expect: "Analytics that respects" },
-  { file: "login.html", expect: "Welcome back" },
-  { file: "signup.html", expect: "Start tracking free" },
+  { url: "/", locale: "en", file: "en.html", expect: "Analytics that respects", lang: "en" },
+  { url: "/it", locale: "it", file: "it.html", expect: "Analytics che rispetta", lang: "it" },
+  { url: "/login", locale: "en", file: join("en", "login.html"), expect: "Welcome back", lang: "en" },
+  { url: "/it/login", locale: "it", file: join("it", "login.html"), expect: "Bentornato", lang: "it" },
+  { url: "/signup", locale: "en", file: join("en", "signup.html"), expect: "Start tracking free", lang: "en" },
+  { url: "/it/signup", locale: "it", file: join("it", "signup.html"), expect: "Inizia a tracciare gratis", lang: "it" },
 ];
 
 if (!existsSync(outDir)) {
@@ -35,9 +45,9 @@ if (!existsSync(outDir)) {
 let failures = 0;
 let checked = 0;
 
-for (const { file, expect } of PAGES) {
+for (const { url, file, expect, lang } of PAGES) {
   const path = join(outDir, file);
-  const label = `/${file.replace(".html", "")}`;
+  const label = url;
 
   if (!existsSync(path)) {
     console.error(`::error::${label}: no prerendered HTML at ${relative(process.cwd(), path)}`);
@@ -50,10 +60,10 @@ for (const { file, expect } of PAGES) {
 
   if (html.includes(MARKER)) {
     console.error(
-      `::error::${label}: contains ${MARKER}. ` +
-        "A statically prerendered page is falling back to client-side " +
-        "rendering. Remove the useSearchParams()/usePathname() call, or wrap " +
-        "the component in a Suspense boundary and accept the fallback.",
+      `::error::${label}: contains ${MARKER}. A statically prerendered page is ` +
+        "falling back to client-side rendering. Remove the " +
+        "useSearchParams()/usePathname() call, or wrap the component in a " +
+        "Suspense boundary and accept the fallback.",
     );
     failures += 1;
     continue;
@@ -68,7 +78,33 @@ for (const { file, expect } of PAGES) {
     continue;
   }
 
-  console.log(`  ✅ ${label.padEnd(9)} ${String(html.length).padStart(7)} B  no bailout`);
+  // <html lang> must reflect the active locale, not the default.
+  if (!html.includes(`<html lang="${lang}"`)) {
+    console.error(`::error::${label}: <html lang="${lang}"> is missing.`);
+    failures += 1;
+    continue;
+  }
+
+  // hreflang alternates for both locales on every localisable page. The
+  // attribute serialises as `hrefLang` — HTML attribute names are
+  // case-insensitive, so match it that way rather than case-sensitively.
+  const hasAlternates = /hreflang="en"/i.test(html) && /hreflang="it"/i.test(html);
+  if (!hasAlternates) {
+    console.error(`::error::${label}: hreflang alternates for en/it are missing.`);
+    failures += 1;
+    continue;
+  }
+
+  // The switcher must be present on every page.
+  if (!html.includes(">EN<") || !html.includes(">IT<")) {
+    console.error(`::error::${label}: language switcher (EN | IT) is missing.`);
+    failures += 1;
+    continue;
+  }
+
+  console.log(
+    `  ✅ ${label.padEnd(12)} ${String(html.length).padStart(7)} B  lang=${lang}  hreflang  no bailout`,
+  );
 }
 
 if (checked === 0) {

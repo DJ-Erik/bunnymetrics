@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 
 import { AuroraBackground } from "@/components/aurora-background";
@@ -11,6 +11,7 @@ import { EASE } from "@/components/motion/reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LogoMark } from "@/components/logo";
+import { Link } from "@/i18n/navigation";
 
 const up = {
   hidden: { opacity: 0, y: 26 },
@@ -18,6 +19,7 @@ const up = {
 };
 
 export function Hero() {
+  const t = useTranslations("hero");
   const reduce = useReducedMotion();
 
   return (
@@ -36,38 +38,36 @@ export function Hero() {
             }}
           >
             <motion.div variants={reduce ? undefined : up}>
-              <Link
+              <a
                 href="#features"
                 className="glass group inline-flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-4 text-sm transition-colors hover:border-foreground/20"
               >
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
                   <Sparkles className="size-3" />
-                  New
+                  {t("badge")}
                 </span>
                 <span className="text-muted-foreground group-hover:text-foreground">
-                  Scroll-depth + engagement analytics are live
+                  {t("badgeText")}
                 </span>
                 <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-              </Link>
+              </a>
             </motion.div>
 
             <motion.h1
               variants={reduce ? undefined : up}
               className="mt-8 text-balance font-display text-[2.75rem] font-bold leading-[0.98] tracking-[-0.03em] sm:text-6xl lg:text-7xl"
             >
-              Analytics that respects
+              {t("titleLead")}
               <br className="hidden sm:block" />{" "}
-              <span className="text-gradient-brand">your visitors</span> and your
-              <br className="hidden sm:block" /> bundle budget
+              <span className="text-gradient-brand">{t("titleAccent")}</span> {t("titleTail1")}
+              <br className="hidden sm:block" /> {t("titleTail2")}
             </motion.h1>
 
             <motion.p
               variants={reduce ? undefined : up}
               className="mt-7 max-w-2xl text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg"
             >
-              A <strong className="font-semibold text-foreground">1.4kb</strong>{" "}
-              cookie-less script that tells you who visits, what they read, and
-              where they bounce. No consent banner. No PII. No Lighthouse penalty.
+              {t("description", { size: t("scriptSize") })}
             </motion.p>
 
             <motion.div
@@ -76,12 +76,12 @@ export function Hero() {
             >
               <Button asChild size="xl" className="group w-full sm:w-auto">
                 <Link href="/signup">
-                  Start tracking free
+                  {t("primaryCta")}
                   <ArrowRight className="transition-transform group-hover:translate-x-1" />
                 </Link>
               </Button>
               <Button asChild size="xl" variant="glass" className="w-full sm:w-auto">
-                <Link href="/login">View live demo</Link>
+                <Link href="/login">{t("secondaryCta")}</Link>
               </Button>
             </motion.div>
 
@@ -91,12 +91,12 @@ export function Hero() {
             >
               <span className="flex items-center gap-1.5">
                 <span className="size-1.5 rounded-full bg-success" />
-                No credit card
+                {t("perk1")}
               </span>
               <span className="hidden size-1 rounded-full bg-border sm:block" />
-              <span>10k events/month free</span>
+              <span>{t("perk2")}</span>
               <span className="hidden size-1 rounded-full bg-border sm:block" />
-              <span>Self-host in one command</span>
+              <span>{t("perk3")}</span>
             </motion.p>
           </motion.div>
         </div>
@@ -116,6 +116,7 @@ export function Hero() {
 
 /** Static, decorative dashboard render used as the hero visual. */
 function DashboardPreview() {
+  const t = useTranslations("hero");
   const reduce = useReducedMotion();
   const bars = [38, 52, 44, 61, 73, 58, 82, 69, 91, 78, 88, 96, 84, 100];
 
@@ -146,7 +147,7 @@ function DashboardPreview() {
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    Visitors
+                    {t("previewVisitors")}
                   </p>
                   <p className="mt-1 font-display text-2xl font-bold">24,891</p>
                 </div>
@@ -175,7 +176,7 @@ function DashboardPreview() {
             <div className="grid gap-4">
               <div className="rounded-xl border border-border/60 bg-background/40 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Active right now
+                  {t("previewActiveNow")}
                 </p>
                 <div className="mt-2 flex items-end gap-2">
                   <span className="relative flex size-2.5">
@@ -188,7 +189,7 @@ function DashboardPreview() {
 
               <div className="rounded-xl border border-border/60 bg-background/40 p-4">
                 <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Top pages
+                  {t("previewTopPages")}
                 </p>
                 <div className="space-y-2.5">
                   {[
@@ -225,7 +226,7 @@ function DashboardPreview() {
         className="glass absolute -left-3 top-1/3 hidden rounded-2xl px-3.5 py-2.5 shadow-lift lg:block"
       >
         <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-          Script size
+          {t("previewScriptSize")}
         </p>
         <p className="font-mono text-lg font-bold text-success">1.4kb</p>
       </motion.div>
@@ -237,7 +238,7 @@ function DashboardPreview() {
         className="glass absolute -right-3 bottom-1/4 hidden rounded-2xl px-3.5 py-2.5 shadow-lift lg:block"
       >
         <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-          Cookies set
+          {t("previewCookiesSet")}
         </p>
         <p className="flex items-center gap-1.5 font-mono text-lg font-bold">
           0
